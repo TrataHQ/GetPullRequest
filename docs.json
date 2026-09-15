@@ -14,18 +14,22 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Get started",
             "pages": [
-              "get-started/introduction",
-              "get-started/install-gpr",
-              "get-started/connect-your-machine",
-              "get-started/connect-github",
-              "get-started/connect-a-coding-agent",
-              "get-started/run-your-first-task"
+              {
+                "group": "5-minute setup",
+                "pages": [
+                  "get-started/install-gpr",
+                  "get-started/connect-your-machine",
+                  "get-started/connect-github",
+                  "get-started/connect-a-coding-agent",
+                  "get-started/run-your-first-task"
+                ]
+              }
             ]
           },
           {
-            "group": "How GPR Works",
+            "group": "How GPR works",
             "pages": [
               "how-gpr-works/overview",
               "how-gpr-works/tasks",
@@ -51,11 +55,25 @@
             "pages": [
               "integrations/github",
               "integrations/jira",
-              "integrations/linear",
-              "integrations/coding-agents/claude-code",
-              "integrations/coding-agents/codex",
-              "integrations/coding-agents/cursor",
-              "integrations/coding-agents/acp-compatible-agents"
+              "integrations/slack",
+              {
+                "group": "Coding agents",
+                "pages": [
+                  "integrations/coding-agents/claude-code",
+                  "integrations/coding-agents/codex",
+                  "integrations/coding-agents/cursor",
+                  "integrations/coding-agents/acp-compatible-agents"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/cli",
+              "reference/configuration",
+              "reference/task-states",
+              "reference/troubleshooting"
             ]
           },
           {
@@ -68,31 +86,19 @@
             ]
           }
         ]
-      },
-      {
-        "tab": "Reference",
-        "groups": [
-          {
-            "group": "Reference",
-            "pages": [
-              "reference/cli",
-              "reference/configuration",
-              "reference/task-states",
-              "reference/troubleshooting"
-            ]
-          }
-        ]
       }
     ]
   },
   "navbar": {
     "primary": {
       "type": "button",
-      "label": "Get Started",
-      "href": "/get-started/introduction"
+      "label": "Get started",
+      "href": "/get-started/install-gpr"
     }
   },
   "footer": {
-    "socials": {}
+    "socials": {
+      "x": "https://x.com/getpullrequest"
+    }
   }
 }

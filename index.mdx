@@ -1,64 +1,51 @@
 ---
-title: "GPR: AI-Powered Pull Requests from Jira to Merge"
+title: "GPR"
 sidebarTitle: "Home"
-description: "GPR connects Jira, GitHub, GitLab, and Slack with AI coding agents on your local machine—so you can go from task to pull request without leaving your phone."
+description: "Orchestrate coding agents on your machines from your phone, from task assignment through pull request review."
 ---
 
-GPR (GetPullRequest) orchestrates your entire development workflow—from picking up a Jira or Linear ticket to opening a verified pull request on GitHub or GitLab—using AI coding agents like Claude Code, Codex, or Cursor running on your own machine. Monitor progress, review diffs, and merge, all from your phone.
+GPR connects your issue tracker, Git hosting, communication tools, and coding agents running on your local machines into a single workflow. It orchestrates work across those systems and makes it accessible from your phone: assign tasks, monitor agent progress, review diffs, and merge pull requests.
 
-<CardGroup cols={2}>
-  <Card title="5-Minute Setup" icon="rocket" href="/get-started/introduction">
-    Install GPR, connect your machine and GitHub, add a coding agent, and run your first task.
-  </Card>
-  <Card title="How GPR Works" icon="diagram-project" href="/how-gpr-works/overview">
-    Understand tasks, workspaces, machines, agent sessions, and pull requests.
-  </Card>
-  <Card title="Guides" icon="map" href="/guides/assign-a-task">
-    Step-by-step walkthroughs for assigning tasks, monitoring progress, and merging PRs.
-  </Card>
-  <Card title="Integrations" icon="plug" href="/integrations/github">
-    Connect GitHub, Jira, Linear, and your preferred AI coding agent.
-  </Card>
-</CardGroup>
+Agents run on **your** machine. The phone is the control surface. The cloud relays control messages and optional integrations. Code stays in local git worktrees unless you push or open a PR.
 
-## How It Works
+<Columns cols={2}>
+  <Card title="5-minute setup" href="/get-started/install-gpr">
+    Install the CLI, pair a machine, connect GitHub, pick an agent, run a task.
+  </Card>
+  <Card title="How GPR works" href="/how-gpr-works/overview">
+    Tasks, workspaces, machines, sessions, and pull requests.
+  </Card>
+  <Card title="Guides" href="/guides/assign-a-task">
+    Day-to-day flows: assign, monitor, review, recover from failures.
+  </Card>
+  <Card title="Security" href="/security/how-local-execution-works">
+    Local execution, permissions, and what leaves your machine.
+  </Card>
+</Columns>
 
-GPR ties together the tools you already use into one automated loop—so your coding agents do the coding while you stay in control.
+## What you need
 
-<Steps>
-  <Step title="Assign a Task">
-    Pick a Jira ticket, Linear issue, or create a task directly in GPR. Assign it to a coding agent running on your local machine.
-  </Step>
-  <Step title="Agent Does the Work">
-    Your coding agent (Claude Code, Codex, Cursor, or any ACP-compatible agent) runs in your real development environment—with access to your actual codebase, tools, and tests.
-  </Step>
-  <Step title="GPR Verifies the Changes">
-    Before opening a pull request, GPR runs your tests and checks in the real environment to confirm the changes are correct.
-  </Step>
-  <Step title="Review and Merge from Your Phone">
-    Get notified on Slack or in the GPR mobile app. Review the diff, approve, and merge—without touching your laptop.
-  </Step>
-</Steps>
+1. The **GPR mobile app** (Android on [Google Play](https://play.google.com/store/apps/details?id=com.pullrequest); iOS pre-register on [getpullrequest.com](https://getpullrequest.com)).
+2. The **`gpr` daemon** on a Mac, Linux, or Windows machine with your repo.
+3. At least one **ACP coding agent** on that machine (Cursor, Claude Code, Codex, and others).
+4. Optional: **GitHub**, **Jira**, or **Slack** for enriched sync.
 
-## Explore the Docs
+## Typical loop
 
-<CardGroup cols={3}>
-  <Card title="Install GPR" icon="download" href="/get-started/install-gpr">
-    Get the GPR CLI installed in under a minute.
-  </Card>
-  <Card title="Connect GitHub" icon="github" href="/get-started/connect-github">
-    Authorize GPR to open and manage pull requests on your behalf.
-  </Card>
-  <Card title="Claude Code" icon="robot" href="/integrations/coding-agents/claude-code">
-    Use Anthropic's Claude Code as your coding agent.
-  </Card>
-  <Card title="Task States" icon="list-check" href="/reference/task-states">
-    Understand how tasks move from assigned to merged.
-  </Card>
-  <Card title="Security" icon="shield-halved" href="/security/how-local-execution-works">
-    Learn how local execution keeps your code on your machine.
-  </Card>
-  <Card title="Troubleshooting" icon="wrench" href="/reference/troubleshooting">
-    Resolve common issues with connections and agent sessions.
-  </Card>
-</CardGroup>
+```text
+Phone creates / syncs a task
+        │
+        ▼
+Backend queues work for a workspace
+        │
+        ▼
+gpr daemon starts an ACP agent in a local worktree
+        │
+        ▼
+Plan → implement → verify → open PR
+        │
+        ▼
+You review and merge from the phone
+```
+
+Start with [Install GPR](/get-started/install-gpr).

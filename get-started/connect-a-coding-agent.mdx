@@ -1,187 +1,60 @@
 ---
-title: "Add a Coding Agent to Execute Tasks on Your Machine"
-sidebarTitle: "Connect Agent"
-description: "Add Claude Code, OpenAI Codex, Cursor, or any ACP-compatible agent to GPR so it can receive tasks, edit code, and run tests on your local machine."
+title: "Connect a coding agent"
+description: "Install an ACP coding agent on the paired machine and verify it with gpr discover."
 ---
 
-GPR is agent-agnostic: it speaks the Agent Communication Protocol (ACP) and can dispatch tasks to any agent that implements it. Out of the box, GPR ships with first-class support for Claude Code, OpenAI Codex, and Cursor. If you use a different agent or build your own, you can register it as a custom ACP endpoint. Pick the agent you already have installed, or try more than one—you can add as many agents as you like and assign different agents to different repositories.
+GPR does not host model APIs for your coding agent. It launches an agent process on your machine over **ACP** (Agent Client Protocol) stdio.
 
-## Supported agents at a glance
+## Check what the daemon can see
 
-| Agent | Command | Best for |
-|---|---|---|
-| **Claude Code** | `claude` | Complex refactors, multi-file reasoning, detailed PR descriptions |
-| **OpenAI Codex** | `codex` | Fast edits, test generation, well-scoped bug fixes |
-| **Cursor** | `cursor` | Projects where you want agent work to stay inside the Cursor IDE |
-| **Custom ACP agent** | any | Internal agents or wrappers around other models |
-
-## Add an agent
-
-<Steps>
-  <Step title="Check your agent is installed">
-    GPR delegates execution to an agent already installed on your machine. Confirm it's available before registering it:
-
-    <Tabs>
-      <Tab title="Claude Code">
-        ```bash
-        claude --version
-        # claude 0.2.14
-        ```
-        Not installed? Follow the [Claude Code setup guide](https://docs.anthropic.com/claude-code/getting-started).
-      </Tab>
-      <Tab title="Codex">
-        ```bash
-        codex --version
-        # codex 1.0.0
-        ```
-        Not installed? Run `npm install -g @openai/codex`.
-      </Tab>
-      <Tab title="Cursor">
-        ```bash
-        cursor --version
-        # Cursor 0.42.3
-        ```
-        Not installed? Download from [cursor.sh](https://cursor.sh).
-      </Tab>
-    </Tabs>
-  </Step>
-
-  <Step title="Run `gpr agent add`">
-    Register the agent with GPR. Use the agent's short name. Both `gpr agent add <name>` and `gpr connect agent <name>` are equivalent — use whichever feels natural:
-
-    <Tabs>
-      <Tab title="Claude Code">
-        ```bash
-        gpr agent add claude-code
-        # or: gpr connect agent claude-code
-        ```
-      </Tab>
-      <Tab title="Codex">
-        ```bash
-        gpr agent add codex
-        # or: gpr connect agent codex
-        ```
-      </Tab>
-      <Tab title="Cursor">
-        ```bash
-        gpr agent add cursor
-        # or: gpr connect agent cursor
-        ```
-      </Tab>
-      <Tab title="Custom ACP agent">
-        ```bash
-        gpr agent add custom --name "my-agent" --endpoint http://localhost:8080/acp
-        ```
-      </Tab>
-    </Tabs>
-  </Step>
-
-  <Step title="Provide your API key">
-    GPR prompts you for the API key the agent needs to call its underlying model. Keys are stored in your system keychain—never in plaintext config files.
-
-    <Tabs>
-      <Tab title="Claude Code">
-        ```
-        ? Anthropic API key: sk-ant-••••••••
-        ✓ Key saved to system keychain.
-        ```
-        GPR sets `ANTHROPIC_API_KEY` in the agent's environment at runtime.
-      </Tab>
-      <Tab title="Codex">
-        ```
-        ? OpenAI API key: sk-proj-••••••••
-        ✓ Key saved to system keychain.
-        ```
-      </Tab>
-      <Tab title="Cursor">
-        Cursor manages its own credentials through the Cursor IDE. GPR uses Cursor's existing session — no separate API key entry is needed.
-        ```
-        ✓ Cursor agent registered. Using Cursor's existing credentials.
-        ```
-      </Tab>
-    </Tabs>
-  </Step>
-
-  <Step title="Confirm the agent is ready">
-    GPR runs a quick smoke test — dispatching a no-op task to verify the agent process starts correctly:
-    ```
-    Testing claude-code agent...
-    ✓ Agent responded in 1.2s
-    ✓ claude-code is ready on machine "work-laptop"
-    ```
-  </Step>
-</Steps>
-
-## Verify your agents
+On the paired machine:
 
 ```bash
-gpr agent list
+gpr discover
 ```
 
-```
-NAME           STATUS   MACHINE         MODEL                  LAST USED
-claude-code    ready    work-laptop     claude-opus-4-5        2 min ago
-codex          ready    work-laptop     gpt-4o                 never
-```
+You get a table of known agents with status:
 
-## Configure agent behaviour
+| Status | Meaning |
+|---|---|
+| `ready` | CLI present and any required ACP adapter is available |
+| `needs adapter` | Agent CLI found; ACP bridge binary missing next to `gpr` |
+| `not installed` | Required CLI not on `PATH` |
 
-You can tune how each agent behaves using `gpr agent config`:
+## Pick an agent
 
-```bash
-# Set the model for Claude Code
-gpr agent config claude-code --model claude-opus-4-5
+Built-in catalog ids include `cursor`, `claude`, `codex`, `kiro`, `opencode`, `qwen`, `cline`, and `copilot`.
 
-# Limit the maximum number of tokens per task (controls cost)
-gpr agent config codex --max-tokens 16000
+For a first setup, **Cursor** is usually the simplest: it speaks ACP via `cursor-agent acp` and needs no separate adapter binary.
 
-# Set a custom system prompt to enforce code style conventions
-gpr agent config claude-code --system-prompt "Always use TypeScript strict mode. Prefer named exports."
+### Cursor
 
-# Allow the agent to run arbitrary shell commands (off by default)
-gpr agent config claude-code --allow-shell-exec
+1. Install Cursor / `cursor-agent` so `cursor-agent` is on your `PATH`.
+2. Run `gpr discover` and confirm **Cursor** is `ready`.
+3. In the app, select Cursor on the workspace.
 
-# Set a timeout for individual tasks (in minutes)
-gpr agent config claude-code --timeout 15
-```
+Details: [Cursor](/integrations/coding-agents/cursor).
 
-<Warning>
-  `--allow-shell-exec` lets the agent run commands like `npm install` or `make build` during a task. Only enable this if you trust the tasks being dispatched and have reviewed your repository's scripts.
-</Warning>
+### Claude Code
 
-## Assign agents to repositories
+1. Install the `claude` CLI and authenticate it (`ANTHROPIC_API_KEY` or Claude login).
+2. Place the `claude-code-acp` adapter binary next to `gpr` (same directory as the daemon binary, usually `~/.local/bin`).
+3. Confirm with `gpr discover`.
 
-By default, GPR uses your first registered agent for all tasks. To assign a specific agent to a specific repo:
+Details: [Claude Code](/integrations/coding-agents/claude-code).
 
-```bash
-gpr repo config myorg/myapp --agent claude-code
-gpr repo config myorg/scripts --agent codex
-```
+### Codex
 
-## Add a custom ACP-compatible agent
+1. Install the `codex` CLI and authenticate (`codex login` or `OPENAI_API_KEY`).
+2. Place the `codex-acp` adapter binary next to `gpr`.
+3. Confirm with `gpr discover`.
 
-Any agent that implements the [ACP specification](https://agentcommunicationprotocol.dev) can be registered as a custom agent:
+Details: [Codex](/integrations/coding-agents/codex).
 
-```bash
-gpr agent add custom \
-  --name "internal-agent" \
-  --endpoint http://localhost:9000/acp \
-  --auth-header "Authorization: Bearer my-internal-token"
-```
+## Select the agent in the app
 
-GPR sends ACP-formatted task payloads to the endpoint and expects an ACP-formatted response stream. See the [ACP-compatible agents guide](/integrations/coding-agents/acp-compatible-agents) for the full payload schema.
+Open the workspace settings in the mobile app and choose the agent (and model if offered). The workspace stores the selected agent id and default model (default `auto`).
 
-<Tip>
-  You can register the same agent type on multiple machines and GPR will load-balance tasks across whichever machines are online. This is useful for running high-volume task queues overnight.
-</Tip>
+## Next
 
----
-
-<CardGroup cols={2}>
-  <Card title="Next: Run Your First Task" icon="arrow-right" href="/get-started/run-your-first-task">
-    Create a task, assign it to your agent, and watch GPR open a pull request.
-  </Card>
-  <Card title="Back: Connect GitHub" icon="arrow-left" href="/get-started/connect-github">
-    Make sure GitHub is connected so GPR can open PRs when the agent finishes.
-  </Card>
-</CardGroup>
+[Run your first task](/get-started/run-your-first-task).

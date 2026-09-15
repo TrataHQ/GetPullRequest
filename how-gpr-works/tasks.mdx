@@ -1,174 +1,57 @@
 ---
-title: "Tasks: States, Fields, and CLI in the GPR Pipeline"
-sidebarTitle: "Tasks"
-description: "Understand how GPR tasks originate from Jira, Linear, or Slack, carry full coding context, move through a lifecycle, and get assigned to an AI agent."
+title: "Tasks"
+description: "What a GPR task is, how the pipeline runs, and how board lanes map to status."
 ---
 
-A Task is the fundamental unit of work in GPR. Every time you want an AI coding agent to implement something—fix a bug, add a feature, update a dependency—you create a Task. GPR uses the information inside that Task to set up the agent, target the right repository and branch, and eventually open a pull request on your behalf. Tasks are designed to be as lightweight or as detailed as you need them to be.
+A **task** is a unit of work on the kanban board. It can be created in-app or synced from GitHub, Jira, or Slack.
 
-## Where Tasks Come From
+## Identity
 
-GPR can create tasks automatically from your existing tools or you can create them directly.
+- Internal id: `tsk_*`
+- Display id: human-facing label such as `TRA-1`
+- Optional `source_provider`: `github`, `jira`, or `slack`
 
-**Jira integration** — Map a Jira column (such as "Ready for Dev") to GPR. When you move an issue into that column, GPR automatically creates a Task from the issue title, description, and any linked GitHub or GitLab repository.
+## Three dimensions
 
-**Linear integration** — Configure a Linear workflow state as a GPR trigger. Issues entering that state become Tasks, carrying their title, description, and cycle context.
-
-**Slack integration** — Use the `/gpr` slash command in any Slack channel to create a Task inline. GPR replies in the thread and updates it as work progresses.
-
-**Manual creation** — Create a Task directly via the CLI, the GPR web app, or the mobile app.
-
-```bash
-gpr task create
-```
-
-<Info>
-  When a Task originates from Jira or Linear, GPR keeps the issue in sync. Status updates and the final PR link are written back to the issue automatically.
-</Info>
-
-## What a Task Contains
-
-| Field | Description |
+| Dimension | Answers |
 |---|---|
-| **Title** | Short summary of the work, imported from the issue or entered manually. |
-| **Description** | Full context for the agent: acceptance criteria, background, references. |
-| **Workspace** | The project context (repository + config) the task runs in. |
-| **Base branch** | The branch the agent checks out from and the PR targets. Defaults to the workspace default. |
-| **Agent** | Which AI coding agent will handle this task: Claude Code, Codex, Cursor, or an ACP-compatible agent. |
-| **Machine** | The local machine the session runs on. GPR auto-selects an available machine or you can pin one. |
-| **Source issue** | Link back to the originating Jira or Linear issue, if applicable. |
-| **Priority** | Inherited from the source issue or set manually. Used when multiple tasks are queued on the same machine. |
+| **Status** | Which board lane? |
+| **Phase** | Which pipeline step is active? |
+| **Checkpoint** | Where can work resume after a drop? |
 
-<Tip>
-  The more detail you put in the **Description**, the better the agent performs. Include acceptance criteria, links to relevant files, and examples of expected input/output wherever you can.
-</Tip>
+Full tables: [Task states](/reference/task-states).
 
-## Task Lifecycle
+### Status (board lane)
 
-Tasks move through a defined set of states from creation to completion.
+`backlog` · `awaiting_user` · `waiting_for_agent` · `in_progress` · `interrupted` · `in_review` · `completed` · `errored`
 
-| State | Meaning |
-|---|---|
-| `pending` | Task created and waiting to be assigned to a machine and agent. |
-| `assigned` | GPR has matched the task to an available machine and agent; session is starting. |
-| `running` | An agent session is actively working on the task. |
-| `verifying` | The agent has finished; GPR is running verification checks (tests, lint, build). |
-| `pr_open` | Verification passed and a pull request has been opened. Awaiting code review. |
-| `merged` | The pull request was merged; the task is complete. |
-| `failed` | Verification failed or the agent encountered an unrecoverable error. |
-| `cancelled` | Task manually cancelled before or during an agent session. |
+### Phase
+
+`idle` · `planning` · `implementing` · `testing` · `opening_pr` · `done`
+
+### Checkpoint (resume barrier)
 
 ```text
-pending
-  │
-  ▼
-assigned ──────────────────────────────────────────▶ cancelled
-  │
-  ▼
-running
-  │
-  ▼
-verifying
-  │
-  ├──── (fail) ──▶ failed
-  │
-  ▼
-pr_open
-  │
-  ▼
-merged
+none → plans_complete → generation_complete → verification_complete
+  → reviews_addressed → summary_complete → pr_complete → notified
 ```
 
-<Note>
-  A `failed` task preserves all agent output and session logs. You can review what the agent did, edit the task description, and re-dispatch it without starting from scratch.
-</Note>
+## Pipeline
 
-## Creating a Task Manually
+When claimed:
 
-<Steps>
-  <Step title="Open the New Task form">
-    In the GPR web app, click **New Task** in the top-right corner, or tap the **+** button in the mobile app. You can also start from the CLI:
+1. **Plan** (may ask clarifying questions → `awaiting_user`)
+2. **Implement** on a durable ACP session in a worktree
+3. **Verify** (tests; retries then `errored` if exhausted)
+4. Address pending review comments if any
+5. Draft summary
+6. Open / update PR → park `in_review`
+7. On merge (or notify with no host) → `completed`
 
-    ```bash
-    gpr task create
-    ```
-  </Step>
-  <Step title="Select a Workspace">
-    Choose the workspace that contains the repository you want the agent to work in. The base branch and available machines are determined by this selection.
-  </Step>
-  <Step title="Write the description">
-    Give the agent the context it needs. A good description includes what to implement, why it matters, and any constraints or references (file paths, API docs, existing patterns to follow).
+## Board projection
 
-    ```markdown
-    ## Goal
-    Add rate limiting to the `/api/export` endpoint.
+The mobile board folds several statuses into fewer columns. Expect Backlog to include parked states such as `awaiting_user`, `waiting_for_agent`, and `interrupted`, plus In Progress, In Review, Done, and Failed.
 
-    ## Acceptance criteria
-    - Return HTTP 429 when a user exceeds 10 requests per minute
-    - Include a `Retry-After` header in the response
-    - Add unit tests covering the limit and the header value
+## Task vs session
 
-    ## References
-    - Existing rate limiter middleware: `src/middleware/rateLimit.ts`
-    - Endpoint location: `src/routes/export.ts`
-    ```
-  </Step>
-  <Step title="Choose an agent">
-    Select the AI coding agent for this task. If you've configured a default agent in the workspace settings, it's pre-selected. You can also connect a new agent first:
-
-    ```bash
-    gpr connect agent claude-code
-    ```
-  </Step>
-  <Step title="Dispatch the task">
-    Click **Dispatch** (or **Save as Draft** if you want to review before running). GPR queues the task and assigns it to an available machine.
-  </Step>
-</Steps>
-
-## Listing and Assigning Tasks
-
-Use the CLI to view your task queue and assign tasks to specific machines or agents.
-
-```bash
-# List all tasks and their current states
-gpr task list
-
-# Assign a pending task to a specific machine or agent
-gpr task assign
-```
-
-`gpr task list` outputs each task's ID, title, current state, assigned machine, and agent:
-
-```text
-ID        TITLE                                    STATE       MACHINE        AGENT
-TASK-42   Add rate limiting to /api/export         running     macbook-pro    claude-code
-TASK-41   Fix null pointer in user service         pr_open     macbook-pro    codex
-TASK-40   Update README install instructions       merged      dev-server     claude-code
-TASK-39   Add CSV export to reporting dashboard    failed      macbook-pro    claude-code
-```
-
-## Editing and Re-dispatching Tasks
-
-You can edit a task's description, workspace, base branch, or agent while it is in `pending` or `failed` state. Tasks in `assigned` or `running` state must be cancelled before editing.
-
-A `failed` task is the most common case for re-dispatch. After reviewing the session log to understand why it failed, update the description if needed and dispatch it again from the app or CLI.
-
-## Interacting with a Running Task
-
-While a task is `running` you can send a message to the running agent session without stopping it. This is useful for clarifying ambiguous requirements mid-run. Open the task's Session view in the app and type in the message field, or use the CLI:
-
-```bash
-# Send a message to the agent working on TASK-42
-gpr sessions message TASK-42 "Use the existing ErrorResponse helper class for the 429 response body"
-```
-
-You can also pause the session, make manual edits to the code, then resume and let the agent continue from where you left off.
-
-<CardGroup cols={2}>
-  <Card title="Agent Sessions" icon="terminal" href="/how-gpr-works/agent-sessions">
-    Monitor and interact with the agent session running your task.
-  </Card>
-  <Card title="Workspaces" icon="folder-open" href="/how-gpr-works/workspaces">
-    Configure the repository, branch, and agent defaults a task inherits.
-  </Card>
-</CardGroup>
+The **task** owns board state and checkpoints. The **session** owns the live agent process and stream. Chat UI follows the session; the board follows the task.

@@ -1,171 +1,36 @@
 ---
-title: "Monitor Your AI Agent Session Progress in Real Time"
-sidebarTitle: "Monitor Progress"
-description: "Track every stage of an agent session—from environment setup through code generation to PR creation—using the CLI, Slack, or the GPR mobile app."
+title: "Monitor progress"
+description: "Track board status, session output, and daemon logs while a task runs."
 ---
 
-Once you've assigned a task, GPR gives you several ways to follow along without being chained to a terminal. You can watch the session unfold command by command in the CLI, receive Slack messages at key milestones, or check a live progress view in the mobile app between meetings. This page explains what to look for at each stage and how to act when something looks off.
+## On your phone
 
-## Session stages
-
-Every agent session moves through the same lifecycle:
-
-| Stage | What's happening |
+| Surface | Shows |
 |---|---|
-| `pending` | Task is waiting for the machine to come online or finish a prior session |
-| `assigned` | GPR has routed the task to a machine; the daemon is preparing the environment |
-| `running` | The agent is actively reading files, writing code, and running tests |
-| `verifying` | GPR is running your configured verification steps (lint, tests, build) |
-| `pr_open` | A pull request has been opened and is ready for your review |
-| `merged` | The PR has been merged and the linked issue is closed |
-| `failed` | The session ended with an error—see [Handle Task Failures](/guides/handle-task-failures) |
+| Board column | Status lane |
+| Task detail | Phase, activity, comments, plans |
+| Linked session / chat | Live agent stream, permission prompts |
 
-<Tip>
-Most tasks reach `pr_open` in 5–20 minutes depending on complexity and agent model. Large refactors across many files may take longer.
-</Tip>
+Friendly status names map to wire values in [Task states](/reference/task-states).
 
-## Monitor with the CLI
+## When the agent asks questions
 
-<Steps>
+Status becomes **Needs your input** (`awaiting_user`). Answer on the task. That fires resume and continues from the current checkpoint.
 
-### Check the current status
+## When you stop a run
+
+Stopping the live session marks the task **Interrupted**. Checkpoint is kept. Send another prompt or rerun to continue.
+
+## On the machine
 
 ```bash
-gpr task status TASK-123
+gpr status
+gpr logs -f
+gpr doctor
 ```
 
-```text
-Task:     TASK-123 — Add retry logic to payment processor
-Status:   running
-Agent:    claude-code
-Machine:  macbook-pro
-Session:  sess_a1b2c3
-Started:  8 minutes ago
-PR:       not yet opened
-```
+Use logs when the app shows the daemon offline or the session stuck in `reconnecting` / `error`.
 
-### Stream live logs
+## Notifications
 
-To tail the agent's output in real time—every file read, every shell command, every test run—attach to the session log stream:
-
-```bash
-gpr session logs sess_a1b2c3 --follow
-```
-
-Press `Ctrl+C` to stop tailing without affecting the session.
-
-<Note>
-Log lines prefixed with `[agent]` come from the AI model's tool calls. Lines prefixed with `[gpr]` come from the GPR orchestrator itself (branch setup, verification steps, PR creation).
-</Note>
-
-### Check verification output
-
-When the session enters the `verifying` stage, GPR runs your configured checks. Review the session log to see test results as they arrive:
-
-```bash
-gpr session logs sess_a1b2c3 --follow
-```
-
-```text
-[gpr] Running verification: npm test
-[gpr] PASS src/payments/processor.test.ts (12 tests)
-[gpr] PASS src/payments/retry.test.ts (8 tests)
-[gpr] All checks passed. Proceeding to open PR.
-```
-
-### List all active tasks
-
-To see all your tasks and their current states at a glance:
-
-```bash
-gpr task list
-```
-
-```text
-KEY        TITLE                               STATUS      AGENT         MACHINE
-TASK-123   Add retry logic to payment proc.    running     claude-code   macbook-pro
-TASK-124   Fix login page redirect             verifying   codex         linux-workstation
-TASK-119   Update API rate limit headers       pr_open     claude-code   macbook-pro
-```
-
-</Steps>
-
-## Monitor via Slack
-
-If you've connected GPR to a Slack workspace, the GPR bot posts a message in your configured channel at three key moments:
-
-1. **Session started** — Posted when the agent begins working. Includes the task title, agent, and a link to the session.
-2. **Verification passed** — Posted when all checks pass and GPR is about to open the PR.
-3. **PR opened** — Posted with a direct link to the pull request for your review.
-
-<Note>
-To configure which Slack channel receives notifications, run `gpr config` and set your preferred notification channel. See the [Slack integration page](/integrations/github) for setup instructions.
-</Note>
-
-The Slack message for an opened PR looks like this:
-
-```text
-✅ GPR — PR opened for TASK-123
-Add retry logic to payment processor
-
-PR #214 · macbook-pro · claude-code · 3 files changed
-https://github.com/your-org/your-repo/pull/214
-```
-
-You can react with ✅ to acknowledge or 🔁 to trigger a re-run directly from Slack (requires the GPR Slack app with write permissions).
-
-## Monitor in the mobile app
-
-<Steps>
-
-### Open the task detail
-
-Tap **Tasks** in the bottom navigation bar, then tap **TASK-123** to open its detail view. The status badge at the top updates live—no need to pull to refresh.
-
-### Read the progress timeline
-
-Scroll down to the **Session Timeline**. Each stage appears as a row with a timestamp and a short description of what happened:
-
-```text
-✔ assigned       10:02 AM   Task received by macbook-pro
-✔ running        10:04 AM   Agent writing code  ← live indicator
-  verifying      —
-  pr_open        —
-```
-
-A spinning indicator next to the current stage shows the session is active.
-
-### View streaming logs on mobile
-
-Tap **View Logs** on the task detail screen to open a scrollable, auto-updating log view. Tap **Pause** to stop auto-scroll so you can read a specific section.
-
-<Tip>
-Long-press any log line to copy it. This is useful for pasting an error message into a search engine or into a follow-up task description.
-</Tip>
-
-</Steps>
-
-## What to watch for
-
-### During `assigned`
-
-- A hang longer than two minutes usually means a dependency install failed. Check logs for `npm ERR!` or similar package manager errors.
-- A `branch conflict` error means the base branch has changed since GPR cloned it. Re-assign the task to pick up the latest commits.
-
-### During `running`
-
-- Log lines showing repeated file edits on the same file may indicate the agent is stuck in a loop. If this persists for more than five minutes, re-assign with a clearer task description.
-- Watch for `[agent] tool_error` lines—these mean the agent attempted an action (like running a command) that failed. A few are normal; many in a row suggest the environment needs attention.
-
-### During `verifying`
-
-- Test failures here are expected to surface before a PR is opened. GPR will mark the session `failed` and report which tests failed. See [Handle Task Failures](/guides/handle-task-failures).
-
-<Warning>
-If the machine running the session loses network connectivity or is put to sleep, the session pauses and resumes automatically when the connection is restored. If it doesn't resume within 10 minutes, re-assign the task using `gpr task assign TASK-123 --agent claude-code --machine macbook-pro` to start a new session.
-</Warning>
-
-## Next steps
-
-- [Review and merge the PR GPR opened](/guides/review-and-merge)
-- [Handle a failed task](/guides/handle-task-failures)
+With push enabled, the app can notify you on important task transitions (for example needs input, in review, failed). Slack can also surface work when that integration is connected.

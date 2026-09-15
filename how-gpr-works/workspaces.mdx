@@ -1,161 +1,39 @@
 ---
-title: "Workspaces: Connect a Repo and Configure GPR Tasks"
-sidebarTitle: "Workspaces"
-description: "A Workspace binds a repository to its agent config, branch strategy, and verification commands so every task in that project runs consistently."
+title: "Workspaces"
+description: "Workspaces bind a directory on a machine to GPR execution settings."
 ---
 
-A Workspace is GPR's representation of a project. It ties a Git repository to everything an AI coding agent needs to work in it successfully: which machine to run on, which agent to use, what branch to target, and which verification commands to run before a pull request is opened. You set a workspace up once, and every task you dispatch into it inherits that configuration automatically.
+A **workspace** is the user-facing execution identity: a directory on a paired machine where agents run.
 
-Think of a workspace as the standing answer to the question "how do we work in this repo?"
+## What it stores
 
-## What a Workspace Contains
-
-| Setting | Description |
+| Field | Meaning |
 |---|---|
-| **Name** | Human-readable label for the workspace, e.g. `api-service` or `frontend-app`. |
-| **Repository** | The GitHub or GitLab repository the workspace is tied to (owner/repo). |
-| **Default base branch** | The branch tasks target by default, e.g. `main` or `develop`. |
-| **Default agent** | The AI coding agent used when a task doesn't specify one. |
-| **Preferred machine** | The local machine GPR routes tasks to first. Falls back to any available machine if not online. |
-| **Verification commands** | Ordered list of shell commands GPR runs after the agent finishes, before opening a PR. |
-| **Environment file** | Path to a `.env` or secrets file on the machine that the agent session inherits. |
-| **PR template** | Optional Markdown template GPR uses when generating pull request descriptions. |
+| Working directory | Bound repo / project path |
+| Machine | Which paired host runs it |
+| Agent | Selected catalog agent id |
+| Default model | Defaults to `auto` |
+| Provider | Defaults to `byoa` |
+| Max concurrent tasks | Defaults to `1` |
+| Status | `active` or `archived` |
 
-<Note>
-  A single repository can have multiple workspaces—for example, one workspace targeting `main` with strict verification for production changes, and a second targeting `dev` with a lighter verification suite for experimental work.
-</Note>
-
-## Initialising a Workspace
-
-Run `gpr workspace init` inside the repository directory on your local machine. GPR walks you through selecting the repository, default branch, agent, and verification commands, then writes a `gpr.json` config file to the project root.
+## Create one
 
 ```bash
-cd ~/code/api-service
-gpr workspace init
+cd /path/to/repo
+gpr setup
 ```
 
-GPR prompts you for each setting and confirms when the workspace is saved:
+Pair via QR from the app. Re-running setup in the same directory reconnects; it does not duplicate.
 
-```text
-? Workspace name: api-service
-? Repository (owner/repo): acme-corp/api-service
-? Default base branch: main
-? Default agent: claude-code
-? Preferred machine: macbook-pro
-? Verification commands (one per line, blank to finish):
-  > npm run lint
-  > npm run typecheck
-  > npm test -- --runInBand
-  > npm run build
-  >
-✓ Workspace "api-service" created (ws_r3s4t5u6)
-```
+## Affinity
 
-<Steps>
-  <Step title="Connect your repository host">
-    Before initialising a workspace, make sure your GitHub or GitLab account is connected. GPR needs permission to list repositories and open pull requests.
+Each task pins to one workspace / daemon. Keep that host online for the life of the run. If the host drops, the task moves to `waiting_for_agent` until it returns.
 
-    ```bash
-    gpr connect github
-    ```
-  </Step>
-  <Step title="Run workspace init">
-    Navigate to the project directory on your local machine and run:
+## Multiple workspaces
 
-    ```bash
-    gpr workspace init
-    ```
+One machine can host several workspaces (different directories). Use separate workspaces when repos or agent defaults differ. See [Manage multiple machines](/guides/manage-multiple-machines).
 
-    Follow the prompts to select the repository, base branch, agent, and preferred machine.
-  </Step>
-  <Step title="Add verification commands">
-    Enter the commands GPR should run after the agent finishes. Add one command per line. Commands run in order; the first non-zero exit code fails verification.
+## Local state
 
-    ```bash
-    # Example verification suite for a Node.js project
-    npm run lint
-    npm run typecheck
-    npm test -- --runInBand
-    npm run build
-    ```
-  </Step>
-  <Step title="Confirm the workspace is ready">
-    GPR validates that the selected machine can reach the repository and saves the configuration. Your workspace is now ready to receive tasks dispatched with `gpr task create`.
-  </Step>
-</Steps>
-
-## Verification Commands
-
-Verification commands are the gate between the agent's work and your remote repository. GPR runs them inside the same working directory the agent used, so they have access to any local secrets or tools your machine has configured.
-
-```bash
-# A more complete verification script (saved as gpr-verify.sh in the repo root)
-#!/usr/bin/env bash
-set -euo pipefail
-
-echo "--- Linting ---"
-npm run lint
-
-echo "--- Type checking ---"
-npm run typecheck
-
-echo "--- Unit tests ---"
-npm test -- --coverage --coverageThreshold='{"global":{"lines":80}}'
-
-echo "--- Build ---"
-npm run build
-```
-
-<Tip>
-  Keep verification commands fast. Slow suites increase the time between the agent finishing and the PR opening. Consider running only unit tests and a build in GPR verification, and leave integration tests for your CI pipeline.
-</Tip>
-
-<Warning>
-  If you leave the verification commands list empty, GPR will skip the verification stage and open a PR immediately after the agent session completes. This is not recommended for production repositories.
-</Warning>
-
-## PR Templates
-
-You can supply a Markdown template that GPR populates when generating pull request descriptions. Use the following placeholders:
-
-| Placeholder | Replaced with |
-|---|---|
-| `{{task_title}}` | The task's title. |
-| `{{task_description}}` | The full task description. |
-| `{{agent_name}}` | The name of the agent that completed the work. |
-| `{{source_issue_url}}` | Link to the originating Jira or Linear issue. |
-| `{{verification_summary}}` | One-line summary of verification results. |
-
-```markdown
-## Summary
-{{task_description}}
-
-## Changes
-<!-- Agent-generated summary inserted here by GPR -->
-
-## Linked issue
-{{source_issue_url}}
-
-## Verification
-{{verification_summary}}
-
----
-*This PR was opened automatically by [GPR](https://getpullrequest.com) using {{agent_name}}.*
-```
-
-## Managing Multiple Workspaces
-
-If you work across many repositories, the **Workspaces** page in the GPR app gives you a consolidated view of all workspaces, their last activity, and the queue depth (how many tasks are waiting). Each workspace displays the name, repository, preferred machine, and current task state counts.
-
-<Note>
-  You can archive workspaces you no longer use without deleting their task history. Archived workspaces stop accepting new tasks but retain all historical data.
-</Note>
-
-<CardGroup cols={2}>
-  <Card title="Machines" icon="computer" href="/how-gpr-works/machines">
-    Register the local machines your workspaces route agent sessions to.
-  </Card>
-  <Card title="Tasks" icon="list-check" href="/how-gpr-works/tasks">
-    Dispatch tasks into a workspace and track their progress.
-  </Card>
-</CardGroup>
+Per-workspace daemon data lives under `~/.gpr/workspaces/<workspace_id>/`.

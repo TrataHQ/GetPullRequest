@@ -1,155 +1,34 @@
 ---
-title: "Pull Requests: Automatic PRs After GPR Verification"
-sidebarTitle: "Pull Requests"
-description: "After verification passes, GPR pushes the branch and opens a PR on GitHub or GitLab with agent commits, a generated description, and full task context."
+title: "Pull requests"
+description: "How GPR opens PRs and what is authoritative when GitHub is connected."
 ---
 
-Opening a pull request is the final act in the GPR pipeline. Once your agent session completes and every verification command exits cleanly, GPR pushes the feature branch to your repository and opens a PR automatically. The PR includes the agent's commits, a generated description built from your task context, and a link back to the originating Jira or Linear issue—so reviewers have everything they need without any manual write-up from you.
+After implement and verify, GPR opens or updates a pull request and parks the task in **In review**.
 
-## What Triggers a PR
+## Source of truth
 
-GPR opens a PR when **all three** of the following conditions are true:
-
-1. The agent session reached `completing` state (the agent signalled it was done).
-2. All workspace verification commands exited with code `0`.
-3. At least one new commit exists on the feature branch that is not yet on the base branch.
-
-If verification fails, GPR stops before pushing and moves the task to `failed` state, notifying you instead. No broken code ever reaches your remote repository automatically.
-
-<Info>
-  If you want to review the diff before the PR opens, you can enable **Manual PR approval** in workspace settings. GPR will run verification, show you a diff preview, and wait for your go-ahead.
-</Info>
-
-## What the PR Contains
-
-### Branch and commits
-
-GPR names feature branches using a predictable pattern:
-
-```text
-gpr/<task-id>/<short-slug>
-# e.g. gpr/TASK-42/add-rate-limiting-to-api-export
-```
-
-All commits the agent made during the session are included on this branch. GPR does not squash them by default, so reviewers can follow the agent's reasoning commit by commit. You can enable squash mode in workspace settings if you prefer a single commit per PR.
-
-### PR description
-
-GPR generates the PR description by combining your task description, a summary of the agent's changes, and metadata. If you've configured a PR template in the workspace, GPR populates it with the following values:
-
-| Placeholder | Example value |
+| Concern | Source |
 |---|---|
-| `{{task_title}}` | `Add rate limiting to /api/export endpoint` |
-| `{{task_description}}` | Full text of the task description you wrote. |
-| `{{agent_name}}` | `Claude Code` |
-| `{{source_issue_url}}` | `https://yourco.atlassian.net/browse/ENG-1234` |
-| `{{verification_summary}}` | `4 checks passed (lint, typecheck, test, build)` |
+| Branch contents / conflicts from git | Local daemon git / worktree |
+| PR number, state, merged flag on GitHub | GitHub API (when connected) |
 
-A typical generated PR description looks like this:
+Merge-check always runs against **session git** on the machine. GitHub metadata is an enrichment layer, not a replacement.
 
-```markdown
-## Summary
-Add rate limiting to the `/api/export` endpoint to prevent abuse.
-Returns HTTP 429 with a `Retry-After` header when a user exceeds 10 req/min.
+## With GitHub connected
 
-## Changes
-- Added `src/middleware/rateLimitExport.ts` with per-user sliding window logic
-- Modified `src/routes/export.ts` to apply the middleware
-- Added `tests/middleware/rateLimitExport.test.ts` (3 tests, all passing)
+1. Pipeline reaches `summary_complete`.
+2. GPR opens or updates the PR.
+3. Task status → `in_review`, checkpoint → `pr_complete`.
+4. On merge → `completed` (`PR_MERGED`).
 
-## Linked issue
-https://yourco.atlassian.net/browse/ENG-1234
+You can review diffs and merge from the mobile app.
 
-## Verification
-4 checks passed: lint · typecheck · test · build
+## Without a code host
 
----
-*Opened automatically by [GPR](https://getpullrequest.com) using Claude Code.*
-```
+If there is no host to open a PR on, the run can finish via `NOTIFIED` and mark the task completed without waiting on a PR.
 
-### Labels and reviewers
+## Reviews
 
-GPR can apply labels and request reviewers automatically. Configure these in workspace settings:
+Review comments (GitHub or in-app) can feed back into the task. A rerun or continuation addresses them before opening an updated PR.
 
-- **Labels** — a static list of label names to apply to every PR from this workspace (e.g. `gpr-generated`, `needs-review`).
-- **Reviewers** — a list of GitHub/GitLab usernames to request review from, or `CODEOWNERS` to use your repository's code ownership rules.
-
-## Reviewing Open Pull Requests
-
-Use `gpr pr review` to list and inspect open PRs that GPR has created across your workspaces.
-
-```bash
-# Open an interactive review of all GPR-created PRs
-gpr pr review
-
-# Review PRs for a specific workspace
-gpr pr review --workspace api-service
-
-# Review a specific task's PR
-gpr pr review TASK-42
-```
-
-`gpr pr review` shows each PR's title, target branch, review state, and a link to open it in GitHub or GitLab. From the same command you can approve, request changes, or open the diff in your browser.
-
-## Linking Back to Jira and Linear
-
-When a task originates from Jira or Linear, GPR writes the PR URL back to the source issue automatically after the PR is opened. In Jira, this appears as a development link in the issue's sidebar. In Linear, it appears as a linked PR in the issue detail.
-
-You can also configure GPR to **transition the Jira issue** to a new status when the PR opens—for example, moving it from "In Development" to "In Review" automatically.
-
-```bash
-# Configure the Jira transition for a workspace
-gpr workspace init
-# (Re-run init to update workspace settings, or edit gpr.json directly.)
-```
-
-## PR Lifecycle After Opening
-
-GPR monitors the PR after it's opened and reflects status changes back into the task.
-
-| PR event | Task state change |
-|---|---|
-| PR opened | Task moves to `pr_open`. |
-| Review requested changes | Task stays `pr_open`; you receive a notification. |
-| PR approved | No automatic action; you merge manually or enable auto-merge. |
-| PR merged | Task moves to `merged`; Jira/Linear issue is transitioned if configured. |
-| PR closed without merging | Task moves to `failed`; you receive a notification. |
-
-<Tip>
-  Enable **auto-merge** in your GitHub or GitLab repository settings alongside GPR's workflow. Once your CI passes and a reviewer approves, the PR merges without further manual action—completing the fully automated loop from Jira issue to merged code.
-</Tip>
-
-## Reviewing and Iterating on an Open PR
-
-If a code reviewer requests changes, you have two options:
-
-**Option 1 — Let the agent address the feedback**
-
-Create a follow-up task linked to the same branch and let the agent make the requested changes.
-
-```bash
-# Create a follow-up task targeting the existing PR branch
-gpr task create
-# When prompted, set the base branch to: gpr/TASK-42/add-rate-limiting-to-api-export
-# Description: "Reviewer asked: use a token bucket instead of sliding window. See comment: <link>"
-```
-
-**Option 2 — Fix it manually**
-
-Check out the branch, make your changes, push, and the PR updates in place.
-
-```bash
-git checkout gpr/TASK-42/add-rate-limiting-to-api-export
-# ... make changes ...
-git commit -m "fix: switch to token bucket per review feedback"
-git push origin gpr/TASK-42/add-rate-limiting-to-api-export
-```
-
-<CardGroup cols={2}>
-  <Card title="Agent Sessions" icon="terminal" href="/how-gpr-works/agent-sessions">
-    Understand the session lifecycle that precedes every pull request.
-  </Card>
-  <Card title="Workspaces" icon="folder-open" href="/how-gpr-works/workspaces">
-    Configure verification commands, PR templates, and auto-transition rules for your project.
-  </Card>
-</CardGroup>
+See [Review and merge a pull request](/guides/review-and-merge).

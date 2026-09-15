@@ -1,146 +1,39 @@
 ---
-title: "Connect GitHub to GPR for Automated Pull Requests"
-sidebarTitle: "Connect GitHub"
-description: "Authorize GPR with GitHub OAuth so it can read repositories, push branches, open pull requests, and post status checks on your behalf."
+title: "Connect GitHub"
+description: "Authorize GitHub so GPR can sync issues and open pull requests."
 ---
 
-Connecting GitHub lets GPR close the loop on every agent task: once your coding agent finishes its work, GPR pushes a branch, opens a pull request with a full summary of what changed and why, and optionally requests review from your team. The connection uses standard GitHub OAuth—you authorize GPR through GitHub's own UI, and you can revoke access at any time.
+GitHub is optional for local coding, but you need it to open PRs on GitHub, sync issues, and enrich merge checks with live PR metadata.
 
-## What permissions GPR requests
+GPR still works in **git-only** mode: the daemon uses local git and worktrees. Without GitHub OAuth, host-backed PR APIs are unavailable.
 
-GPR requests the minimum GitHub OAuth scopes needed to do its job:
+## Connect from the app
 
-| Permission | Why GPR needs it |
+1. Sign in to GPR (Google or GitHub via Firebase login).
+2. Open **Settings → Connections**.
+3. Connect **GitHub** and finish the OAuth flow.
+4. Bind a repository to your workspace when prompted during onboarding or workspace setup.
+
+The GitHub OAuth callback uses the app deep link `com.pullrequest://github-callback`.
+
+## Auto-pick issues with a label
+
+Onboarding documents this convention:
+
+1. Add the label `gpr:agent` to a GitHub issue.
+2. Assign the issue to yourself.
+3. GPR syncs it onto the board and can start work on your paired workspace.
+
+## What GitHub unlocks
+
+| Capability | Needs GitHub OAuth |
 |---|---|
-| `repo` | Read code, push branches, and open pull requests in private and public repos |
-| `pull_request` | Create, update, and merge pull requests on your behalf |
-| `checks` | Post status checks and test results to pull requests |
-| `read:org` | Discover which organisations and teams you belong to for routing tasks |
-| `read:user` | Identify your GitHub account and associate it with your GPR profile |
-| `workflow` | Update GitHub Actions workflow files if a task modifies CI configuration |
+| Local agent work in a worktree | No |
+| Open / update a GitHub pull request | Yes |
+| Sync GitHub issues onto the board | Yes |
+| Live PR mergeability hints | Yes |
+| Merge from the app via GitHub | Yes |
 
-<Note>
-  GPR never stores your source code. It pushes branches and opens PRs using the GitHub API and then discards the local working copy after the task completes.
-</Note>
+## Next
 
-## Connect your GitHub account
-
-<Steps>
-  <Step title="Run the connect command">
-    ```bash
-    gpr connect github
-    ```
-    GPR prints a URL and opens it in your default browser automatically.
-  </Step>
-  <Step title="Authorize GPR on GitHub">
-    Review the requested permissions in GitHub's authorization screen, then click **Authorize GPR**. If your organisation requires OAuth app approval, you'll see an additional screen to request it from an org admin.
-  </Step>
-  <Step title="Return to your terminal">
-    After you approve, GitHub redirects back to GPR's callback URL. Your terminal confirms the connection:
-    ```
-    ✓ GitHub connected: dana (github.com/dana-codes)
-    ✓ Access to 3 organisations: acme-eng, dana-codes, open-source-collective
-    ```
-  </Step>
-  <Step title="Select default repositories (optional)">
-    Tell GPR which repos to watch for task routing. You can skip this now and specify repos per task instead.
-    ```bash
-    gpr repo add myorg/myapp
-    gpr repo add myorg/api-service
-    ```
-  </Step>
-</Steps>
-
-## Verify the connection
-
-Confirm GPR can reach your GitHub account:
-
-```bash
-gpr connection status github
-```
-
-Expected output:
-
-```
-GitHub
-  Account:       dana (dana-codes)
-  Organisations: acme-eng, dana-codes
-  Token expires: never (OAuth token)
-  Status:        ✓ connected
-```
-
-You can also visit [app.getpr.dev/integrations](https://app.getpr.dev/integrations) to see all active connections in one place.
-
-## Connect a GitLab account
-
-If you use GitLab instead of (or alongside) GitHub, the flow is identical:
-
-```bash
-gpr connect gitlab
-```
-
-<Tabs>
-  <Tab title="GitLab.com">
-    The command opens the standard GitLab OAuth screen. Authorize GPR and return to your terminal — no extra configuration needed.
-  </Tab>
-  <Tab title="Self-hosted GitLab">
-    Pass your GitLab instance URL with the `--host` flag:
-    ```bash
-    gpr connect gitlab --host https://gitlab.internal.example.com
-    ```
-    GPR creates an application credential on your instance. You'll need at least **Maintainer** access to at least one group or project.
-  </Tab>
-</Tabs>
-
-## Manage repository access
-
-```bash
-# List repos GPR is configured to use
-gpr repo list
-
-# Add a repo
-gpr repo add myorg/new-service
-
-# Remove a repo
-gpr repo remove myorg/old-service
-
-# Check which machine and agent are assigned to a repo
-gpr repo show myorg/myapp
-```
-
-## Adjust pull request settings
-
-You can configure how GPR opens PRs per repository:
-
-```bash
-# Set a default reviewer
-gpr repo config myorg/myapp --reviewer dana-codes
-
-# Set the base branch (defaults to the repo's default branch)
-gpr repo config myorg/myapp --base-branch main
-
-# Add labels to every GPR-created PR
-gpr repo config myorg/myapp --labels "gpr,automated"
-
-# Enable draft PRs (useful for review before merge)
-gpr repo config myorg/myapp --draft
-```
-
-<Tip>
-  Enable **draft PRs** while you're evaluating GPR. This way, every automated PR requires a human to mark it ready for review before it can be merged—giving you a safety net without interrupting the workflow.
-</Tip>
-
-<Warning>
-  If your organisation enforces an IP allowlist, add the GPR egress IP ranges to allow API calls from the GPR orchestrator. See [Data and Connectivity](/security/data-and-connectivity) for the current IP list.
-</Warning>
-
----
-
-<CardGroup cols={2}>
-  <Card title="Next: Connect a Coding Agent" icon="arrow-right" href="/get-started/connect-a-coding-agent">
-    Configure Claude Code, Codex, or Cursor to execute tasks on your machine.
-  </Card>
-  <Card title="Back: Connect Your Machine" icon="arrow-left" href="/get-started/connect-your-machine">
-    Make sure your machine is registered and online before running tasks.
-  </Card>
-</CardGroup>
+[Connect a coding agent](/get-started/connect-a-coding-agent) on the paired machine.

@@ -1,338 +1,57 @@
 ---
-title: "GPR Configuration Reference: Every Field Explained"
-sidebarTitle: "Configuration"
-description: "Every field in gpr.yaml and ~/.gpr/config.yaml—machine identity, agent defaults, workspace settings, GitHub, Jira, Linear, and notification options."
+title: "Configuration"
+description: "Environment variables and on-disk paths for the gpr daemon."
 ---
 
-GPR reads configuration from two sources: a global file at `~/.gpr/config.yaml` that applies to all your projects, and an optional project-level `gpr.yaml` at the root of any repository you initialize with `gpr workspace init`. Project-level values take precedence over global values for the keys they define, letting you use different agents or Jira projects per repository without touching your global defaults.
+## Paths
 
-<Note>
-  You can edit either file directly in a text editor or use `gpr config` CLI commands to read and write individual keys. Run `gpr config --edit` to open the active config in your `$EDITOR`.
-</Note>
+| Path | Purpose |
+|---|---|
+| `~/.local/bin/gpr` | Default binary location (Unix) |
+| `~/.gpr/` | Daemon home (state, logs, workspaces) |
+| `~/.gpr/state.json` | Identity + pairing |
+| `~/.gpr/daemon.log` | Rotated log |
+| `~/.gpr/events.jsonl` | Local event trail |
+| `~/.gpr/workspaces/<id>/` | Per-workspace state |
 
----
+Override home with `GPR_HOME`.
 
-## Full Example
+## Daemon environment
 
-The following example shows every supported field with representative values. You do not need to specify fields you don't use—GPR applies sensible defaults for everything not explicitly set.
-
-```yaml
-# ~/.gpr/config.yaml  (or ./gpr.yaml at project root)
-
-machine:
-  name: dev-laptop
-  tags:
-    - macos
-    - fast-ssd
-  workspace_root: ~/gpr-workspace
-  max_concurrent_tasks: 2
-  task_timeout_minutes: 60
-  reconnect_interval_seconds: 30
-
-default_agent: claude-code
-
-agents:
-  claude-code:
-    path: ""                      # auto-detected from $PATH
-    env:
-      ANTHROPIC_API_KEY: ""       # set via `gpr agent add --env` to avoid plaintext
-  codex:
-    path: ""
-    env:
-      OPENAI_API_KEY: ""
-  cursor:
-    path: /Applications/Cursor.app/Contents/MacOS/Cursor
-
-workspace:
-  default_base_branch: main
-  auto_assign: true
-  clone_depth: 0                  # 0 = full clone; positive integer = shallow clone
-  pr_draft: false
-  pr_labels:
-    - gpr
-  pr_reviewers: []
-  commit_message_template: "feat: {task_title} [{issue_id}]"
-
-github:
-  default_org: myorg
-  app_id: ""                      # only needed for GitHub App auth
-  app_private_key_path: ""
-
-jira:
-  url: https://mycompany.atlassian.net
-  email: me@example.com
-  default_project: PROJ
-  transition_on_merge: true
-  done_transition_name: Done
-
-linear:
-  default_team: eng-platform
-  transition_on_merge: true
-  done_state_name: Done
-
-notifications:
-  slack: true
-  slack_channel: "#dev-updates"
-  email: false
-  email_address: ""
-  on_states:
-    - pr_open
-    - merged
-    - failed
-
-telemetry:
-  enabled: true
-
-log:
-  level: info                     # debug | info | warn | error
-  path: ~/.gpr/logs/gpr.log
-  max_size_mb: 50
-  max_backups: 5
-```
-
----
-
-## machine
-
-Settings that describe and control the behavior of this machine as a GPR worker.
-
-<ParamField body="machine.name" type="string" default="system hostname">
-  Human-readable identifier for this machine. Appears in `gpr machine list`, task assignment commands, and the GPR dashboard. Choose a name that's meaningful to you, like `dev-laptop` or `home-workstation`.
-</ParamField>
-
-<ParamField body="machine.tags" type="array of strings" default="[]">
-  Labels that describe this machine's capabilities (e.g. `gpu`, `macos`, `fast-ssd`). Tags are not currently used for automatic routing, but they appear in `gpr machine list` and can guide manual assignment decisions.
-</ParamField>
-
-<ParamField body="machine.workspace_root" type="string" default="~/gpr-workspace">
-  Absolute path on this machine where GPR clones repositories and runs agents. Each task gets its own subdirectory under this root. Ensure the path has enough disk space for the repositories you work with.
-</ParamField>
-
-<ParamField body="machine.max_concurrent_tasks" type="integer" default="1">
-  Maximum number of tasks this machine will run simultaneously. Setting this above `1` runs multiple agent processes in parallel. Only increase this if your machine has sufficient CPU and memory.
-</ParamField>
-
-<ParamField body="machine.task_timeout_minutes" type="integer" default="60">
-  How long (in minutes) GPR waits for an agent to complete a task before marking it `failed` with a timeout error. Set to `0` to disable timeouts entirely.
-</ParamField>
-
-<ParamField body="machine.reconnect_interval_seconds" type="integer" default="30">
-  How often (in seconds) the GPR daemon retries connecting to the GPR cloud when the connection drops. Lower values recover faster but may produce more noise in unstable network conditions.
-</ParamField>
-
----
-
-## default_agent
-
-```yaml
-default_agent: claude-code
-```
-
-<ParamField body="default_agent" type="string" default="claude-code">
-  The agent used for new tasks when no `--agent` flag is provided and no project-level override is set. Must match a key under the `agents` block. Valid built-in values: `claude-code`, `codex`, `cursor`.
-</ParamField>
-
----
-
-## agents
-
-A map of named agent configurations. Keys must match the identifiers used with `gpr agent add` and `--agent` flags.
-
-<ParamField body="agents.<name>.path" type="string" default="">
-  Absolute path to the agent binary. Leave empty for built-in agents (`claude-code`, `codex`, `cursor`) to let GPR auto-detect the binary from `$PATH`. Required for custom ACP agents that are not on `$PATH`.
-</ParamField>
-
-<ParamField body="agents.<name>.acp_url" type="string">
-  Base URL of an ACP-compatible agent server (e.g. `http://localhost:8080`). When set, GPR communicates with the agent over HTTP rather than by spawning a local process.
-</ParamField>
-
-<ParamField body="agents.<name>.env" type="map of strings">
-  Environment variables injected into the agent process at launch. Stored as plaintext in the config file—prefer setting secrets via `gpr agent add --env` which writes them encrypted to `~/.gpr/credentials.yaml` instead.
-</ParamField>
-
-```yaml
-agents:
-  claude-code:
-    env:
-      ANTHROPIC_API_KEY: ""
-  my-custom-agent:
-    acp_url: http://localhost:9000
-    env:
-      MY_SECRET: ""
-```
-
-<Warning>
-  Avoid storing real API keys in `gpr.yaml` if you commit that file to version control. Use `gpr agent add --env` or reference environment variables with `$MY_VAR` syntax instead.
-</Warning>
-
----
-
-## workspace
-
-Default behaviors for repository cloning, branch management, and pull request creation.
-
-<ParamField body="workspace.default_base_branch" type="string" default="main">
-  The branch that GPR branches from and targets when opening pull requests. Override per task with `gpr task create --base`.
-</ParamField>
-
-<ParamField body="workspace.auto_assign" type="boolean" default="true">
-  When `true`, tasks are automatically assigned to the default agent and an available machine as soon as they are created, without requiring a separate `gpr task assign` call.
-</ParamField>
-
-<ParamField body="workspace.clone_depth" type="integer" default="0">
-  Git clone depth. `0` performs a full clone. A positive integer (e.g. `1`) creates a shallow clone with that many commits of history—faster for large repositories, but may break tools that rely on full history.
-</ParamField>
-
-<ParamField body="workspace.pr_draft" type="boolean" default="false">
-  When `true`, GPR opens all pull requests as drafts. You can promote them to ready-for-review in GitHub manually, or by merging via GPR.
-</ParamField>
-
-<ParamField body="workspace.pr_labels" type="array of strings" default='["gpr"]'>
-  GitHub labels to apply to every pull request GPR opens. Labels must already exist in the target repository.
-</ParamField>
-
-<ParamField body="workspace.pr_reviewers" type="array of strings" default="[]">
-  GitHub usernames or team slugs (`org/team-name`) to request review from on every PR. An empty list opens PRs with no reviewers pre-assigned.
-</ParamField>
-
-<ParamField body="workspace.commit_message_template" type="string" default="feat: {task_title} [{issue_id}]">
-  Template for commit messages generated by GPR. Supports the placeholders `{task_title}`, `{task_id}`, `{issue_id}`, `{agent}`, and `{branch}`.
-</ParamField>
-
----
-
-## github
-
-Settings for your GitHub integration. Authentication tokens themselves are stored in `~/.gpr/credentials.yaml`, not here.
-
-<ParamField body="github.default_org" type="string">
-  Default GitHub organization for commands where `owner/repo` is not fully specified. When set, you can pass just a repo name (e.g. `myapp`) instead of `myorg/myapp` in task commands.
-</ParamField>
-
-<ParamField body="github.app_id" type="string">
-  GitHub App ID, required only if you authenticated with `gpr connect github --github-app`.
-</ParamField>
-
-<ParamField body="github.app_private_key_path" type="string">
-  Path to the PEM private key for your GitHub App installation. Only required with `--github-app` authentication.
-</ParamField>
-
----
-
-## jira
-
-<ParamField body="jira.url" type="string">
-  Base URL of your Jira instance. Set automatically when you run `gpr connect jira --url`.
-</ParamField>
-
-<ParamField body="jira.email" type="string">
-  Email address for Jira Cloud API token authentication.
-</ParamField>
-
-<ParamField body="jira.default_project" type="string">
-  Jira project key used when no `--jira` flag is provided in a task command. For example, if `default_project` is `PROJ`, running `gpr task create "Fix bug"` automatically links to a new PROJ issue.
-</ParamField>
-
-<ParamField body="jira.transition_on_merge" type="boolean" default="true">
-  When `true`, GPR transitions the linked Jira issue to the done state automatically when the associated PR is merged.
-</ParamField>
-
-<ParamField body="jira.done_transition_name" type="string" default="Done">
-  Name of the Jira workflow transition to trigger when `transition_on_merge` is `true`. Must match the transition name in your Jira workflow exactly, including capitalization.
-</ParamField>
-
----
-
-## linear
-
-<ParamField body="linear.default_team" type="string">
-  Linear team identifier or slug to use when creating or linking issues without an explicit team. Set automatically when you run `gpr connect linear --team`.
-</ParamField>
-
-<ParamField body="linear.transition_on_merge" type="boolean" default="true">
-  When `true`, GPR moves the linked Linear issue to the done state when the associated PR is merged.
-</ParamField>
-
-<ParamField body="linear.done_state_name" type="string" default="Done">
-  The Linear issue state name to transition to on merge. Must match a state in your Linear workflow exactly.
-</ParamField>
-
----
-
-## notifications
-
-<ParamField body="notifications.slack" type="boolean" default="false">
-  Enable Slack notifications. Requires your Slack workspace to be connected via the GPR dashboard or `gpr connect slack`.
-</ParamField>
-
-<ParamField body="notifications.slack_channel" type="string" default="#general">
-  Slack channel to post notifications to. Use the `#channel-name` format.
-</ParamField>
-
-<ParamField body="notifications.email" type="boolean" default="false">
-  Enable email notifications for task state changes.
-</ParamField>
-
-<ParamField body="notifications.email_address" type="string">
-  Email address to send notifications to. Defaults to the address on your GPR account.
-</ParamField>
-
-<ParamField body="notifications.on_states" type="array of strings" default='["pr_open", "merged", "failed"]'>
-  Task states that trigger a notification. Valid values: `pending`, `assigned`, `running`, `verifying`, `pr_open`, `merged`, `failed`, `cancelled`. Limit this list to the states you care about to reduce noise.
-</ParamField>
-
-```yaml
-notifications:
-  slack: true
-  slack_channel: "#dev-updates"
-  email: false
-  on_states:
-    - pr_open
-    - merged
-    - failed
-```
-
----
-
-## telemetry
-
-<ParamField body="telemetry.enabled" type="boolean" default="true">
-  Send anonymous usage telemetry to help improve GPR. Telemetry includes CLI command usage counts and error rates—never code, task titles, or credentials. Set to `false` to opt out entirely.
-</ParamField>
-
----
-
-## log
-
-<ParamField body="log.level" type="string" default="info">
-  Log verbosity. Accepts `debug`, `info`, `warn`, or `error`. Use `debug` when investigating issues; it produces detailed output including HTTP request/response bodies and agent communication traces.
-</ParamField>
-
-<ParamField body="log.path" type="string" default="~/.gpr/logs/gpr.log">
-  File path where GPR writes structured log output. Supports `~` expansion.
-</ParamField>
-
-<ParamField body="log.max_size_mb" type="integer" default="50">
-  Maximum size of a single log file in megabytes before GPR rotates it.
-</ParamField>
-
-<ParamField body="log.max_backups" type="integer" default="5">
-  Number of rotated log files to retain before deletion.
-</ParamField>
-
----
-
-## Config Precedence
-
-GPR merges configuration in the following order, with later sources overriding earlier ones:
-
-| Priority | Source | Location |
+| Variable | Default | Meaning |
 |---|---|---|
-| 1 (lowest) | Built-in defaults | (hardcoded) |
-| 2 | Global config | `~/.gpr/config.yaml` |
-| 3 | Project config | `./gpr.yaml` |
-| 4 (highest) | CLI flags | per-command |
+| `GPR_SERVER_URL` | prod/dev WS URL | Backend websocket endpoint |
+| `GPR_ENV` | unset | `dev` / `development` / `local` → `ws://localhost:8000/gpr/ws/daemon` |
+| `GPR_HOME` | `~/.gpr` | Data directory |
+| `GPR_RECONNECT_MAX_ATTEMPTS` | `0` (forever) | Cap automatic reconnects |
+| `GPR_CONNECTION_MAX_LIFETIME_MINUTES` | `50` | Proactive WS rotation; `0` disables |
+| `GPR_SESSION_RECONNECT_GRACE_SECONDS` | `120` | Keep agent alive across brief disconnects |
+| `GPR_AGENT_IDLE_SECONDS` | `10800` (3h) | Hibernate quiet agents; `0` disables |
+| `GPR_AUTO_APPROVE_TOOL_KINDS` | read,search,think,fetch | Interactive auto-approve set; `none` disables |
+| `GPR_TASK_AUTO_APPROVE_TOOL_KINDS` | adds `execute` | Unattended task auto-approve set |
 
-<Tip>
-  Use the global config for machine identity, default agent, and notification preferences. Use project-level `gpr.yaml` files for repo-specific settings like Jira project keys and base branches—and commit `gpr.yaml` to the repository so teammates get the same defaults automatically.
-</Tip>
+Production websocket default:
+
+```text
+wss://api.getpullrequest.com/gpr/ws/daemon
+```
+
+## Installer environment
+
+| Variable | Meaning |
+|---|---|
+| `GPR_INSTALL_BASE_URL` | Release host (default `https://getpullrequest.com`) |
+| `GPR_VERSION` | Pin version |
+| `GPR_INSTALL_DIR` | Binary directory |
+| `GPR_SKIP_PATH` | Skip PATH modification |
+| `GPR_FORCE` | Reinstall over existing binary |
+
+## Workspace settings (app)
+
+Configured in the mobile app per workspace:
+
+- Working directory (from `gpr setup`)
+- Agent id
+- Default model (`auto` by default)
+- Max concurrent tasks (`1` by default)
+- Provider (`byoa` by default)

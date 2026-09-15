@@ -1,473 +1,71 @@
 ---
-title: "GPR Troubleshooting Guide: Common Issues and Fixes"
-sidebarTitle: "Troubleshooting"
-description: "Step-by-step fixes for common GPR problems—machine connectivity, agent startup, GitHub auth, stuck tasks, missing Slack alerts, and CLI errors."
+title: "Troubleshooting"
+description: "Common GPR setup and runtime failures with concrete fixes."
 ---
 
-When something in GPR stops working, the fastest path to a fix is narrowing down which layer has the problem: the machine connection, an integration credential, the AI agent itself, or GPR's orchestration logic. This guide walks you through the most common issues in order of frequency, with concrete diagnostic commands and resolution steps for each. For anything not covered here, the debug log and support contact details are at the bottom of the page.
-
----
-
-## Getting Debug Logs
-
-Before diving into specific issues, it is worth knowing how to capture detailed logs. The `--debug` flag on any `gpr` command emits verbose output to stderr, including HTTP request/response bodies, agent communication traces, and internal state machine transitions.
+## `gpr` not found
 
 ```bash
-# Run any command with debug output
-gpr --debug task status TASK-456
-
-# Stream the live log file
-tail -f ~/.gpr/logs/gpr.log
-
-# Increase log verbosity globally
-gpr config log.level debug
+echo "$PATH"
+ls ~/.local/bin/gpr
 ```
 
-<Tip>
-  When contacting support, attach the output of `gpr --debug machine list` and the relevant portion of `~/.gpr/logs/gpr.log`. This gives the support team the context they need to diagnose the issue quickly.
-</Tip>
+Open a new shell, or add `~/.local/bin` to `PATH`. Re-run the installer if the binary is missing:
 
----
-
-## Common Issues
-
-<Accordion title="Machine not connecting">
-
-**Symptoms:** `gpr machine list` shows the machine as `offline`; tasks assigned to it stay in `assigned` state indefinitely; `gpr connect machine` completes but status never changes to `online`.
-
-**Likely causes:**
-- The GPR daemon (`gprd`) is not running on the machine
-- A firewall is blocking outbound WebSocket connections on port `443`
-- The machine token has been revoked or expired
-- The machine's system clock is significantly out of sync (token validation is time-sensitive)
-
-**Resolution steps:**
-
-1. **Check whether the daemon is running:**
-
-   ```bash
-   # macOS / Linux
-   ps aux | grep gprd
-
-   # If not running, start it
-   gprd start
-   ```
-
-2. **Check connectivity to the GPR cloud:**
-
-   ```bash
-   gpr --debug connect machine --name dev-laptop
-   # Look for "websocket connected" or an error in the output
-   ```
-
-3. **Verify your network allows outbound WebSocket traffic:**
-
-   ```bash
-   # Test basic connectivity
-   curl -I https://api.getpullrequest.com/health
-   ```
-
-4. **Re-register the machine if the token is stale:**
-
-   ```bash
-   gpr machine remove dev-laptop
-   gpr connect machine --name dev-laptop
-   ```
-
-5. **Sync the system clock:**
-
-   ```bash
-   # macOS
-   sudo sntp -sS time.apple.com
-
-   # Linux (systemd)
-   sudo timedatectl set-ntp true
-   ```
-
-<Note>
-  If you are behind a corporate proxy or VPN, GPR respects the `HTTPS_PROXY` and `NO_PROXY` environment variables. Set them before running `gprd start`.
-</Note>
-
-</Accordion>
-
-<Accordion title="Agent not starting">
-
-**Symptoms:** A task transitions to `running` but immediately moves to `failed`; `gpr task status <id> --logs` shows "agent process failed to start" or "binary not found"; `gpr agent list` shows the agent as `unknown` or `error`.
-
-**Likely causes:**
-- The agent binary is not installed or not on `$PATH`
-- A required API key environment variable is missing or invalid
-- The agent process exits immediately due to a configuration error
-- For ACP agents: the server URL is unreachable
-
-**Resolution steps:**
-
-1. **Verify the binary exists and is executable:**
-
-   ```bash
-   # For Claude Code
-   which claude
-
-   # For Codex
-   which codex
-
-   # For Cursor
-   ls /Applications/Cursor.app/Contents/MacOS/Cursor
-   ```
-
-2. **Test the agent manually:**
-
-   ```bash
-   claude --version
-   codex --version
-   ```
-
-3. **Check that the API key is set:**
-
-   ```bash
-   gpr --debug agent list
-   # Look for "env: ANTHROPIC_API_KEY not set" or similar
-   ```
-
-4. **Re-add the agent with the correct key:**
-
-   ```bash
-   gpr agent add claude-code --env ANTHROPIC_API_KEY=sk-ant-... --default
-   ```
-
-5. **For ACP agents, verify the server is reachable:**
-
-   ```bash
-   curl http://localhost:9000/health
-   ```
-
-6. **Specify an explicit binary path if auto-detection fails:**
-
-   ```bash
-   gpr agent add claude-code --path /usr/local/bin/claude
-   ```
-
-</Accordion>
-
-<Accordion title="GitHub auth failing">
-
-**Symptoms:** `gpr connect github` completes but `gpr task create` returns a 401 or 403 error; PRs are not being opened; `gpr --debug task create` logs show "GitHub API: unauthorized".
-
-**Likely causes:**
-- The OAuth token has expired or been revoked in your GitHub account
-- GPR was not granted the required `repo` scope
-- You are targeting a repository in an organization that was not authorized
-- A GitHub App installation has been suspended
-
-**Resolution steps:**
-
-1. **Re-run the GitHub connection flow:**
-
-   ```bash
-   gpr connect github
-   ```
-
-2. **Verify the required scopes were granted:**
-
-   ```bash
-   gpr --debug connect github
-   # Look for granted scopes in the debug output
-   ```
-
-3. **For organization repositories, explicitly authorize the org:**
-
-   ```bash
-   gpr connect github --org mycompany
-   ```
-
-4. **Check that the token is still valid in GitHub:**
-   - Visit **GitHub → Settings → Applications → Authorized OAuth Apps**
-   - Look for "GPR" and confirm it is still listed with the expected scopes
-
-5. **Confirm the repo exists and you have write access:**
-
-   ```bash
-   gpr --debug task create "Test" --repo myorg/myapp --agent claude-code
-   # Debug output will show the GitHub API call and response
-   ```
-
-<Warning>
-  If you recently rotated your GitHub personal access token or revoked GPR's access, you must run `gpr connect github` again before tasks can open pull requests.
-</Warning>
-
-</Accordion>
-
-<Accordion title="PR not opening after task completes">
-
-**Symptoms:** A task moves from `verifying` to `failed` with reason `pr_creation_failed`; or a task stays in `verifying` longer than expected; `gpr task status <id> --logs` shows a verification step passing but no PR URL appearing.
-
-**Likely causes:**
-- GitHub auth token lacks the `repo` scope
-- The target branch already has an open PR from the same head branch
-- Verification checks failed (task transitions to `failed` instead of `pr_open`)
-- The branch push was rejected due to branch protection rules
-- The base branch specified does not exist on the remote
-
-**Resolution steps:**
-
-1. **Check the task logs for the specific error:**
-
-   ```bash
-   gpr task status TASK-456 --logs
-   ```
-
-2. **Confirm GitHub auth has the `repo` scope:**
-
-   ```bash
-   gpr connect github   # re-authorize to ensure correct scopes
-   ```
-
-3. **Check if a PR for this branch already exists:**
-   - Visit the repository on GitHub and check open pull requests
-   - If a stale open PR exists from the same branch, close it and retry
-
-4. **Verify the base branch exists:**
-
-   ```bash
-   git ls-remote https://github.com/myorg/myapp refs/heads/main
-   ```
-
-5. **Review branch protection rules:**
-   - Visit **GitHub → Repository → Settings → Branches**
-   - Ensure GPR's app or token has permission to push to feature branches
-
-6. **Retry the task with a clean workspace:**
-
-   ```bash
-   gpr task retry TASK-456 --clean
-   ```
-
-</Accordion>
-
-<Accordion title="Task stuck in 'running'">
-
-**Symptoms:** `gpr task status <id>` shows `state: running` for much longer than expected (typically more than 30 minutes for a standard task); the agent appears to have stopped making progress; `--logs` shows no new output.
-
-**Likely causes:**
-- The agent is waiting for interactive input (some agents prompt for confirmation in certain scenarios)
-- The agent is running a long-running process (e.g. a large test suite or a slow build)
-- The agent process has hung silently
-- The machine lost network connectivity mid-task but has since reconnected
-- `task_timeout_minutes` is set very high or to `0` (disabled)
-
-**Resolution steps:**
-
-1. **Check recent log activity:**
-
-   ```bash
-   gpr task status TASK-456 --logs
-   # If the last log line is > 10 minutes old, the agent has likely hung
-   ```
-
-2. **Watch for new log output:**
-
-   ```bash
-   gpr task status TASK-456 --watch --logs
-   ```
-
-3. **Check the machine is still online:**
-
-   ```bash
-   gpr machine list --online
-   ```
-
-4. **Set a reasonable timeout if none is configured:**
-
-   ```yaml
-   # ~/.gpr/config.yaml
-   machine:
-     task_timeout_minutes: 60
-   ```
-
-5. **Force-cancel and retry if the agent is hung:**
-
-   ```bash
-   gpr task cancel TASK-456
-   gpr task retry TASK-456 --clean
-   ```
-
-6. **Check the machine's local agent process:**
-
-   ```bash
-   # On the machine running the task
-   ps aux | grep claude    # or codex, cursor
-   # Kill a hung process if necessary
-   kill -9 <pid>
-   ```
-
-<Note>
-  After manually killing an agent process on the machine, GPR detects the unexpected exit within 30 seconds and transitions the task to `failed`. You can then retry it normally.
-</Note>
-
-</Accordion>
-
-<Accordion title="Slack notifications not arriving">
-
-**Symptoms:** Tasks complete (reach `pr_open`, `merged`, or `failed`) but no Slack messages appear in the configured channel; `gpr config` shows `notifications.slack: true`.
-
-**Likely causes:**
-- Slack is not connected (OAuth not completed in the GPR dashboard)
-- The configured Slack channel does not exist or GPR's bot is not a member
-- `notifications.on_states` does not include the states you are expecting
-- Notifications are enabled globally but overridden to `false` in a project-level `gpr.yaml`
-
-**Resolution steps:**
-
-1. **Verify the notification config:**
-
-   ```bash
-   gpr config notifications
-   ```
-
-2. **Check which states trigger notifications:**
-
-   ```bash
-   gpr config notifications.on_states
-   # If empty or missing pr_open/merged/failed, add them:
-   gpr config notifications.on_states '["pr_open","merged","failed"]'
-   ```
-
-3. **Confirm the Slack channel name is correct (including the `#` prefix):**
-
-   ```bash
-   gpr config notifications.slack_channel
-   ```
-
-4. **Re-authorize Slack via the GPR dashboard:**
-   - Log in at [app.getpullrequest.com](https://app.getpullrequest.com)
-   - Navigate to **Settings → Integrations → Slack**
-   - Click **Reconnect** and follow the OAuth flow
-
-5. **Invite the GPR bot to your channel in Slack:**
-
-   ```
-   /invite @gpr
-   ```
-
-6. **Check for a project-level override that disables notifications:**
-
-   ```bash
-   cat gpr.yaml | grep -A5 notifications
-   # Remove or update if notifications.slack is set to false
-   ```
-
-</Accordion>
-
-<Accordion title="CLI commands returning errors">
-
-**Symptoms:** `gpr` commands exit with non-zero codes and print error messages; errors like "authentication required", "config not found", "connection refused", or generic "unexpected error".
-
-**Common errors and fixes:**
-
-**`Error: not authenticated — run gpr connect machine`**
 ```bash
-# Re-register this machine
-gpr connect machine --name dev-laptop
+curl -fsSL https://getpullrequest.com/install | bash
 ```
 
-**`Error: config file not found`**
-```bash
-# Initialize the workspace
-gpr workspace init
+## Daemon offline in the app
 
-# Or specify the config file path explicitly
-gpr --config ~/.gpr/config.yaml task list
+```bash
+gpr status
+gpr doctor
+gpr reconnect
+gpr logs -f
 ```
 
-**`Error: connection refused — is gprd running?`**
-```bash
-# Start the GPR daemon
-gprd start
+Check network access to `wss://api.getpullrequest.com/gpr/ws/daemon`. After laptop sleep, `gpr reconnect` or `gpr restart` often clears a stuck socket.
 
-# Confirm it is running
-gprd status
+## Pairing QR expired
+
+Pairing tokens are short-lived (on the order of minutes). Run `gpr setup --force` and scan again.
+
+## No agents ready
+
+```bash
+gpr discover
+which cursor-agent claude codex
 ```
 
-**`Error: invalid task ID`**
+Install the agent CLI, place any required ACP adapter beside `gpr`, then:
+
 ```bash
-# List tasks to find valid IDs
-gpr task list
+gpr restart
+gpr discover
 ```
 
-**`Error: permission denied`**
-```bash
-# Check that your account has access to the resource
-# For repo operations, verify GitHub auth
-gpr connect github
-```
+Service-managed daemons may not inherit your interactive shell `PATH`. Install tools in standard locations or configure the service environment.
 
-**General debugging steps:**
+## Task stuck in waiting for machine
 
-1. **Run with `--debug` to see the full error context:**
+Host went offline. Bring the daemon back, then wait for auto-resume from checkpoint. See [Handle task failures](/guides/handle-task-failures).
 
-   ```bash
-   gpr --debug <your command>
-   ```
+## Task failed during testing
 
-2. **Check the GPR log file:**
+Open task activity for the failing command output. Fix tests locally if needed, then **Rerun** from the app.
 
-   ```bash
-   tail -100 ~/.gpr/logs/gpr.log
-   ```
+## Permission prompts never appear
 
-3. **Verify your GPR version is current:**
+For unattended tasks, more tool kinds are auto-approved (including `execute`). Mutating `edit` / `delete` / `move` should still reach you unless you widened auto-approve via env vars. See [Permissions](/security/permissions).
 
-   ```bash
-   gpr --version
-   # Update if outdated — most bug fixes ship in patch releases
-   ```
+## GitHub PR not opening
 
-4. **Reset credentials if all auth-related commands fail:**
+Confirm GitHub is connected under **Settings → Connections** and the workspace repo is bound. Local commits can still exist on the machine without a host PR.
 
-   ```bash
-   gpr config --edit
-   # Or delete and re-create the credentials file (you will need to re-connect all integrations)
-   rm ~/.gpr/credentials.yaml
-   gpr connect machine --name dev-laptop
-   gpr connect github
-   gpr connect jira --url https://mycompany.atlassian.net
-   ```
-
-</Accordion>
-
----
-
-## Collecting Information for Support
-
-When you contact the GPR support team, include the following information to get the fastest resolution:
+## Update the daemon
 
 ```bash
-# 1. GPR version
+gpr update
 gpr --version
-
-# 2. Debug output from the failing command
-gpr --debug <failing command> 2>&1 | tee /tmp/gpr-debug.txt
-
-# 3. Last 200 lines of the log file
-tail -200 ~/.gpr/logs/gpr.log > /tmp/gpr-log.txt
-
-# 4. Machine and agent status
-gpr machine list --output json > /tmp/gpr-machines.json
-gpr agent list --output json > /tmp/gpr-agents.json
-
-# 5. Task status if applicable
-gpr task status <id> --logs --output json > /tmp/gpr-task.json
 ```
-
-<Warning>
-  Review the debug output before sharing it. The `--debug` flag can include request headers and response bodies. Credentials are redacted automatically, but double-check that no sensitive data from your codebase or issue descriptions is included.
-</Warning>
-
----
-
-## Contacting Support
-
-- **In-app chat:** Click the **?** icon in the GPR dashboard at [app.getpullrequest.com](https://app.getpullrequest.com)
-- **Email:** [support@getpullrequest.com](mailto:support@getpullrequest.com) — include the diagnostic files collected above
-- **Status page:** [status.getpullrequest.com](https://status.getpullrequest.com) — check here first if GPR appears completely unreachable; we post incident updates in real time
-- **Community:** Join the GPR Slack community via the dashboard for peer help and announcements

@@ -1,136 +1,73 @@
 ---
-title: "Connect Your Local Machine to the GPR Orchestrator"
-sidebarTitle: "Connect Machine"
-description: "Register your local machine with GPR so AI coding agents can run tasks in your real development environment, with your tools, dependencies, and test suite."
+title: "Connect your machine"
+description: "Pair a local directory with the GPR mobile app using gpr setup."
 ---
 
-GPR runs coding agents directly on your machine—not in a remote cloud container. This is what makes the workflow trustworthy: the agent uses your actual repository checkout, your installed dependencies, and your real test runner. Before any task can execute, GPR needs to know about your machine and establish a secure persistent connection to it.
+A **workspace** is a directory on your machine that GPR can run agents in. `gpr setup` creates that workspace, installs a startup service, and shows a QR code for pairing.
 
-## What `gpr connect machine` does
+## Prerequisites
 
-When you run `gpr connect machine`, the CLI:
+- `gpr` installed ([Install GPR](/get-started/install-gpr))
+- GPR mobile app signed in
+- The repo directory you want agents to use
 
-1. **Generates a machine identity** — a unique name and ID that appear in your GPR dashboard.
-2. **Opens an encrypted tunnel** — a lightweight, outbound-only WebSocket connection from your machine to the GPR relay. No inbound ports or firewall changes are needed.
-3. **Registers your environment metadata** — OS, shell, and detected runtimes (Node, Python, Go, etc.) so GPR can route compatible tasks to this machine.
+## Pair
 
-<Note>
-  The tunnel is outbound-only. GPR never opens a port on your machine. Traffic flows: `GPR cloud → relay → your machine`, initiated by your machine's process.
-</Note>
-
-## Connect your machine
-
-<Steps>
-  <Step title="Run the connect command">
-    In your terminal, run:
-    ```bash
-    gpr connect machine
-    ```
-  </Step>
-  <Step title="Name your machine (optional)">
-    GPR auto-generates a name like `dana-macbook-pro`, but you can set a custom one:
-    ```bash
-    gpr connect machine --name "work-laptop"
-    ```
-    Machine names appear in the dashboard and in task logs, so choose something you'll recognise.
-  </Step>
-  <Step title="Approve the registration">
-    GPR prints a confirmation prompt:
-    ```
-    Registering machine "work-laptop"...
-    Machine ID: mch_01hx9k2p3qr7v8n5
-    ✓ Connected. This machine is now online in team acme-eng.
-    ```
-    The process continues running in your terminal, keeping the tunnel alive.
-  </Step>
-  <Step title="Run as a background service (recommended)">
-    To keep the connection alive after you close the terminal, install GPR as a system service:
-
-    <Tabs>
-      <Tab title="macOS (launchd)">
-        ```bash
-        gpr service install
-        gpr service start
-        ```
-        GPR registers a `launchd` agent that starts automatically at login.
-      </Tab>
-      <Tab title="Linux (systemd)">
-        ```bash
-        gpr service install
-        sudo systemctl enable --now gpr
-        ```
-      </Tab>
-      <Tab title="Windows (Task Scheduler)">
-        Run in an **elevated** PowerShell prompt:
-        ```powershell
-        gpr service install
-        gpr service start
-        ```
-      </Tab>
-    </Tabs>
-  </Step>
-</Steps>
-
-## Verify the connection
-
-Check that GPR sees your machine as online from another terminal window (or after reinstalling the service):
+From the repo root (or any directory you want bound):
 
 ```bash
-gpr machine list
+cd /path/to/your/repo
+gpr setup
 ```
 
-Expected output:
-
-```
-ID                    NAME            STATUS    RUNTIMES               LAST SEEN
-mch_01hx9k2p3qr7v8n5  work-laptop     online    node 20, python 3.12   just now
-```
-
-You can also verify from the **GPR dashboard** at [app.getpr.dev/machines](https://app.getpr.dev/machines)—your machine should appear with a green **Online** badge.
-
-<Tip>
-  If you use multiple machines (e.g. a desktop and a laptop), repeat `gpr connect machine` on each one. GPR can route tasks to any online machine and will queue them if all machines are offline.
-</Tip>
-
-## Manage connected machines
+Or pass a path:
 
 ```bash
-# View all machines in your team
-gpr machine list
-
-# Rename a machine
-gpr machine rename mch_01hx9k2p3qr7v8n5 "home-desktop"
-
-# Take a machine offline gracefully
-gpr machine disconnect mch_01hx9k2p3qr7v8n5
-
-# Remove a machine permanently
-gpr machine remove mch_01hx9k2p3qr7v8n5
+gpr setup /path/to/your/repo
 ```
 
-<Warning>
-  Removing a machine is permanent. Any tasks queued for that specific machine will be reassigned to another online machine in your team, or will remain queued if no other machines are available.
-</Warning>
+Then in the app:
 
-## What's running on your machine
+1. Open **Settings**
+2. Open **Connections** / add a connection
+3. Scan the QR code from `gpr setup`
 
-The `gpr connect machine` process (or the background service) is a single lightweight daemon. It:
+The QR payload includes the server URL, a short-lived pairing token, and the daemon id.
 
-- Maintains an outbound WebSocket connection (~1 MB idle memory)
-- Listens for task dispatch events from the GPR orchestrator
-- Launches and supervises the coding agent process when a task arrives
-- Streams logs back to GPR in real time
-- Reports task success or failure and uploads diffs for PR creation
+## Confirm the daemon is online
 
-It does **not** index your codebase, read files outside the working directory of a task, or retain any code after a task completes.
+```bash
+gpr status
+```
 
----
+```bash
+gpr doctor
+```
 
-<CardGroup cols={2}>
-  <Card title="Next: Connect GitHub" icon="arrow-right" href="/get-started/connect-github">
-    Authorize GPR to open pull requests in your GitHub repositories.
-  </Card>
-  <Card title="Back: Install GPR" icon="arrow-left" href="/get-started/install-gpr">
-    Install the CLI if you haven't already.
-  </Card>
-</CardGroup>
+```bash
+gpr logs -f
+```
+
+You should see the workspace online in the app after the websocket connects.
+
+## Useful flags
+
+```bash
+gpr setup --force
+```
+
+Regenerates pairing credentials.
+
+```bash
+gpr setup --server-url wss://api.getpullrequest.com/gpr/ws/daemon
+```
+
+Overrides the backend websocket URL. For local backend development the daemon uses `ws://localhost:8000/gpr/ws/daemon` when `GPR_ENV` is `dev`, `development`, or `local`.
+
+## Re-running setup
+
+Re-running `gpr setup` in an already configured directory reconnects that workspace. It does not create a duplicate.
+
+## Next
+
+[Connect GitHub](/get-started/connect-github) so GPR can open and enrich pull requests.

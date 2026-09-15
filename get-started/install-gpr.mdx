@@ -1,133 +1,54 @@
 ---
-title: "Install the GPR CLI via npm, Homebrew, or curl"
-sidebarTitle: "Install GPR"
-description: "Install the GPR command-line tool using npm, Homebrew, or a one-line curl script, then verify the installation and check your version."
+title: "Install GPR"
+description: "Install the gpr CLI on macOS, Linux, or Windows."
 ---
 
-The GPR CLI is the single binary that connects your machine to the GPR orchestrator. Install it once and every `gpr` command—connecting integrations, managing agents, creating tasks—runs from the same tool. Pick the installation method that fits your environment below.
+The `gpr` binary is the daemon that pairs your machine with the mobile app and launches coding agents.
 
-## Choose your installation method
+## macOS and Linux
 
-<CodeGroup>
-
-```bash npm
-npm install -g @gpr/cli
+```bash
+curl -fsSL https://getpullrequest.com/install | bash
 ```
 
-```bash Homebrew
-brew install gpr-cli/tap/gpr
+Installs to `~/.local/bin/gpr` and adds that directory to your shell PATH when needed.
+
+## Windows
+
+```powershell
+irm 'https://getpullrequest.com/install.ps1' | iex
 ```
 
-```bash curl
-curl -fsSL https://install.getpr.dev | bash
-```
+Installs to `%USERPROFILE%\.local\bin\gpr.exe`.
 
-</CodeGroup>
-
-<Note>
-  The npm package requires **Node.js 18 or later**. Run `node --version` to check. The Homebrew and curl installers bundle their own runtime and have no external dependencies.
-</Note>
-
-## Verify the installation
-
-After installing, confirm the `gpr` binary is on your `PATH`:
+## Verify
 
 ```bash
 gpr --version
 ```
 
-You should see output similar to:
-
-```
-gpr 1.4.2 (darwin-arm64)
-```
-
-If the command is not found, see the [troubleshooting tips](#troubleshooting) below.
-
-## Log in to your GPR account
-
-<Steps>
-  <Step title="Run the login command">
-    ```bash
-    gpr login
-    ```
-    This opens a browser window and prompts you to sign in with GitHub, Google, or your GPR credentials.
-  </Step>
-  <Step title="Complete the browser flow">
-    Authenticate in the browser. When you see **"You're logged in — return to your terminal"**, the flow is complete.
-  </Step>
-  <Step title="Confirm your session">
-    Back in your terminal, GPR prints your account details:
-    ```
-    ✓ Logged in as dana@example.com (team: acme-eng)
-    ```
-  </Step>
-</Steps>
-
-<Tip>
-  If you work across multiple GPR teams, use `gpr login --team <team-slug>` to switch context without logging out.
-</Tip>
-
-## Upgrade GPR
-
-<Tabs>
-  <Tab title="npm">
-    ```bash
-    npm update -g @gpr/cli
-    ```
-  </Tab>
-  <Tab title="Homebrew">
-    ```bash
-    brew upgrade gpr
-    ```
-  </Tab>
-  <Tab title="curl">
-    Re-run the installer script — it always fetches the latest release:
-    ```bash
-    curl -fsSL https://install.getpr.dev | bash
-    ```
-  </Tab>
-</Tabs>
-
-## Troubleshooting
-
-**`command not found: gpr` after npm install**
-
-npm global binaries need to be on your `PATH`. Run the following to find where npm puts global packages, then add that directory to your shell profile:
-
 ```bash
-npm config get prefix
-# Example output: /usr/local
-# Add /usr/local/bin to your PATH if it isn't there already
+gpr doctor
 ```
 
-**`curl` installer is blocked by a corporate firewall**
+## What gets installed
 
-Download the binary directly from the [GitHub releases page](https://github.com/getpr/cli/releases) and place it somewhere on your `PATH`:
+| Path | Purpose |
+|---|---|
+| `~/.local/bin/gpr` | CLI + daemon binary |
+| `~/.gpr/` | Daemon state, logs, workspace data |
 
-```bash
-# Example for macOS arm64
-chmod +x gpr-darwin-arm64
-mv gpr-darwin-arm64 /usr/local/bin/gpr
-```
+State is separate from the binary. Uninstalling without `--purge` leaves `~/.gpr/` in place.
 
-**Permission denied on Linux**
+## Optional install overrides
 
-If the curl installer can't write to `/usr/local/bin`, install to your home directory instead:
+| Variable | Effect |
+|---|---|
+| `GPR_VERSION` | Pin a release instead of latest |
+| `GPR_INSTALL_DIR` | Change install directory |
+| `GPR_FORCE=1` | Overwrite an existing binary |
+| `GPR_SKIP_PATH=1` | Do not modify shell PATH |
 
-```bash
-curl -fsSL https://install.getpr.dev | INSTALL_DIR=$HOME/.local/bin bash
-```
+## Next
 
-Then make sure `$HOME/.local/bin` is in your `PATH`.
-
----
-
-<CardGroup cols={2}>
-  <Card title="Next: Connect Your Machine" icon="arrow-right" href="/get-started/connect-your-machine">
-    Register your local environment so GPR knows where to run agent tasks.
-  </Card>
-  <Card title="Back: Introduction" icon="arrow-left" href="/get-started/introduction">
-    Review what you'll accomplish across the full setup guide.
-  </Card>
-</CardGroup>
+[Connect your machine](/get-started/connect-your-machine) with `gpr setup`.

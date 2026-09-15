@@ -1,84 +1,47 @@
 ---
-title: "GPR Pipeline: From Task Assignment to Pull Request"
-sidebarTitle: "Overview"
-description: "Follow a task as GPR routes it through Jira, an AI coding agent, local verification, and GitHub—all without leaving your phone or IDE."
+title: "Overview"
+description: "How GPR pieces fit together: phone, backend, daemon, agents, and git."
 ---
 
-GPR connects your project management tools, AI coding agents, and version control into a single automated pipeline. When you assign a task to GPR—from Jira, Linear, Slack, or directly in the app—it picks up the context, spins up an agent session on your local machine, verifies the result in your real dev environment, and opens a pull request. You stay in control at every step and can monitor or intervene from anywhere.
+GPR is a control plane for coding agents that run on machines you own.
 
-## The Four Stages
-
-Every piece of work moves through the same four stages: **Task → Agent Session → Verification → Pull Request**. Understanding this pipeline helps you configure GPR correctly and troubleshoot when something needs your attention.
+## Runtime shape
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        GPR Pipeline                             │
-│                                                                 │
-│  ┌──────────┐    ┌───────────────┐    ┌────────────┐    ┌────┐ │
-│  │   Task   │───▶│ Agent Session │───▶│Verification│───▶│ PR │ │
-│  │          │    │               │    │            │    │    │ │
-│  │ Jira /   │    │ Claude Code / │    │ Tests /    │    │ GH │ │
-│  │ Linear / │    │ Codex /       │    │ Lint /     │    │ GL │ │
-│  │ Slack /  │    │ Cursor /      │    │ Build      │    │    │ │
-│  │ Manual   │    │ ACP Agent     │    │            │    │    │ │
-│  └──────────┘    └───────────────┘    └────────────┘    └────┘ │
-│                          │                                      │
-│                   Runs on your                                  │
-│                   local Machine                                 │
-└─────────────────────────────────────────────────────────────────┘
+Flutter app  --HTTPS-->  FastAPI (REST)
+Flutter app  --WSS---->  hub / relay  <--WSS--  gpr daemon
+                              │
+                         optional HTTPS to GitHub / Jira / Slack
+                              │
+gpr daemon  --ACP stdio-->  Cursor / Claude / Codex / …
+gpr daemon  --git-------->  local worktrees
 ```
 
-## Stage 1 — Task
+| Piece | Role |
+|---|---|
+| Mobile app | Board, chat, review, settings |
+| Backend | Auth, task queue, relay, integrations |
+| `gpr` daemon | Pairing, ACP host, git worktrees |
+| Coding agent | Writes and edits code on the machine |
 
-A Task is the unit of work. It carries everything the agent needs: a description, the target repository, the base branch, and any linked Jira or Linear issue. Tasks can be created automatically when you move a Jira issue to a configured column, triggered by a Slack message, or created manually with the CLI:
+## Core objects
 
-```bash
-gpr task create
-```
+| Object | What it is |
+|---|---|
+| [Machine](/how-gpr-works/machines) | Paired computer running the daemon |
+| [Workspace](/how-gpr-works/workspaces) | Directory bound to a machine; where tasks run |
+| [Task](/how-gpr-works/tasks) | Board item with status, phase, and checkpoint |
+| [Agent session](/how-gpr-works/agent-sessions) | Live ACP session tied to a task or chat |
+| [Pull request](/how-gpr-works/pull-requests) | Review artifact; GitHub is source of truth when connected |
 
-Tasks move through a defined lifecycle—`pending`, `assigned`, `running`, `verifying`, `pr_open`, `merged`, or `failed`—so you always know exactly where work stands.
+A task pins to one workspace. Do not let a second host take over the same task.
 
-[Learn more about Tasks →](/how-gpr-works/tasks)
+## BYOA by default
 
-## Stage 2 — Agent Session
+Workspaces default to bring-your-own-agent (`provider: byoa`). Agents and credentials live on your machine. The cloud orchestrates; it does not replace your local toolchain.
 
-Once a task is ready, GPR routes it to a registered **Machine**—a local development computer you've enrolled with `gpr connect machine`—and starts an **Agent Session**. The session launches your chosen AI coding agent (Claude Code, Codex, Cursor, or any ACP-compatible agent) in the workspace's repository directory, passing it the task description and context. The agent works autonomously, committing changes as it goes.
+## Enrichments vs core
 
-You can watch the session's output in real time, send messages to guide the agent, pause it, or cancel it at any point from the GPR mobile app or web dashboard.
+Core features work without OAuth: board, sessions, local git, merge-check from the daemon.
 
-[Learn more about Agent Sessions →](/how-gpr-works/agent-sessions)
-
-## Stage 3 — Verification
-
-Before GPR touches your remote repository, it runs a verification step inside the same local environment the agent used. Verification can include your test suite, linters, type checks, and build commands—configured per workspace. If any check fails, the task moves to `failed` state and you receive a notification so you can decide whether to retry, intervene manually, or discard the changes.
-
-This step means broken code never reaches your repository automatically.
-
-## Stage 4 — Pull Request
-
-When verification passes, GPR opens a pull request on GitHub or GitLab. The PR includes the agent's commits, a generated description that summarises the changes, and a link back to the originating Jira or Linear issue. Reviewers get full context without any manual write-up from you. Use `gpr pr review` to inspect or approve open PRs from the CLI.
-
-[Learn more about Pull Requests →](/how-gpr-works/pull-requests)
-
----
-
-## Key Concepts at a Glance
-
-<CardGroup cols={2}>
-  <Card title="Tasks" icon="list-check" href="/how-gpr-works/tasks">
-    The unit of work. Originates from Jira, Linear, Slack, or created manually with full lifecycle tracking.
-  </Card>
-  <Card title="Workspaces" icon="folder-open" href="/how-gpr-works/workspaces">
-    A project context pairing a repository with its agent config, verification commands, and branch strategy.
-  </Card>
-  <Card title="Machines" icon="computer" href="/how-gpr-works/machines">
-    Your registered local development machines where agent sessions actually run.
-  </Card>
-  <Card title="Agent Sessions" icon="terminal" href="/how-gpr-works/agent-sessions">
-    The lifecycle of one AI coding agent working through a task on your machine.
-  </Card>
-</CardGroup>
-
-<Tip>
-  You can trigger the entire pipeline from your phone. Install the GPR mobile app, connect your integrations once, and dispatch tasks from anywhere—the work happens on your local machine automatically.
-</Tip>
+[GitHub](/integrations/github), [Jira](/integrations/jira), and [Slack](/integrations/slack) are optional enrichments. They sync issues, open host PRs, and add metadata. They never replace local git results.

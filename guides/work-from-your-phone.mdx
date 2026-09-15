@@ -1,215 +1,40 @@
 ---
-title: "Run the Complete GPR Development Workflow on Mobile"
-sidebarTitle: "Work from Phone"
-description: "Assign tasks, watch agent sessions live, review diffs, approve, and merge pull requests entirely from your phone using the GPR app and Slack integration."
+title: "Work from your phone"
+description: "What you can do in the GPR mobile app without sitting at the machine."
 ---
 
-GPR is designed so you never have to open a laptop to keep development moving. Whether you're commuting, between meetings, or simply away from your desk, the GPR mobile app and Slack integration give you full access to the entire workflow—from handing a Jira issue to an AI agent all the way through merging the resulting pull request. This guide covers every step of that workflow from a mobile device.
-
-<Note>
-The GPR mobile app is available for iOS and Android. Download it from the App Store or Google Play and sign in with the same account you use on the web. Your connected repositories, machines, and notification settings sync automatically.
-</Note>
-
-## Set up mobile notifications
-
-Before you start working from your phone, make sure you'll be alerted at the right moments.
-
-<Steps>
-
-### Enable push notifications
-
-On first launch, the GPR app asks for permission to send push notifications. Grant this permission—it's how you'll know when an agent finishes, a PR is ready to review, or a session fails.
-
-To adjust notification settings later, go to **Settings** → **Notifications** in the app and toggle the events you care about:
-
-- **Session started** — When an agent begins working on a task
-- **PR opened** — When a PR is ready for your review (recommended: always on)
-- **Verification failed** — When a session fails before a PR is opened
-- **PR merged** — Confirmation that a merge completed
-
-### Connect Slack (optional)
-
-If your team uses Slack, GPR can send notifications to a channel or directly to you as a DM. This gives you a second notification channel and lets teammates see task progress without installing the app.
-
-In the GPR app, go to **Settings** → **Integrations** → **Slack** → **Connect**. Follow the OAuth flow to authorise the GPR bot. Then choose a default channel or enable DMs for your account.
-
-</Steps>
-
-## Assign a task from your phone
-
-<Steps>
-
-### Browse your open tasks
-
-Tap **Tasks** in the bottom navigation bar. The task list shows open issues synced from your connected Jira projects and GitHub repositories. Use the search bar to find a task by key or keyword, or filter by project, assignee, or label using the **Filter** button.
-
-### Open the task and assign it
-
-Tap the task you want to hand off. On the task detail screen, tap **Assign to Agent**.
-
-On the **Choose Agent** screen, select the AI agent you want to use:
-
-- **Claude Code** — Best for most coding tasks
-- **Codex** — Good for targeted edits and scripts
-- **Cursor** — Use when Cursor is open on the target machine
-- **Custom agent** — Any ACP-compatible agent you've configured
-
-### Choose a machine
-
-On the **Choose Machine** screen, you'll see your registered machines with their status:
-
-- 🟢 **Online** — Ready to accept work immediately
-- 🟡 **Busy** — Running another session; your task will queue
-- ⚫ **Offline** — Machine is unreachable; task queues until reconnection
-
-Tap an online machine to select it.
-
-<Tip>
-Tap the ℹ️ icon next to a machine name to see its last active time and which agents are installed on it.
-</Tip>
-
-### Add context (optional)
-
-Tap **Add Context** to type a short instruction that helps the agent focus. Keep it to one or two sentences—for example: *"Only modify files in src/payments. Follow the existing error handling pattern in processor.ts."*
-
-### Confirm the assignment
-
-Tap **Confirm Assignment**. The task card updates to **In Progress** and you'll see a confirmation banner. GPR sends a push notification when the agent starts working.
-
-</Steps>
-
-## Watch an agent session live
-
-You don't have to wait for a push notification to check in. Open the task at any time to see the live session.
-
-<Steps>
-
-### Read the session timeline
-
-On the task detail screen, scroll to **Session Timeline**. Each stage shows a timestamp and a status indicator:
-
-- ✅ Completed stage
-- 🔄 Active stage (spinning)
-- ⬜ Upcoming stage
-
-The stages progress from `assigned` → `running` → `verifying` → `pr_open`.
-
-### Stream the session log
-
-Tap **View Logs** to open the streaming log view. New lines appear at the bottom as the agent works. Tap **Pause** to stop auto-scrolling and read a section; tap **Resume** to continue following the tail.
-
-<Tip>
-Long-press any log line to copy its text. Useful for capturing an error message to paste into a Slack message or a revised task description.
-</Tip>
-
-### Check verification results
-
-When the session enters the **Verifying** stage, the timeline row expands to show individual check results as they complete:
-
-```text
-✔ eslint       — no errors
-✔ npm test     — 20 passed, 0 failed
-✔ npm run build — completed in 14s
-```
-
-A single red ✖ means a check failed. Tap it to see the full error output.
-
-</Steps>
-
-## Review a diff on mobile
-
-When GPR opens a pull request, you'll receive a **PR ready for review** push notification. Tap it to go directly to the PR detail screen.
-
-<Steps>
-
-### Read the PR summary
-
-The PR detail screen shows the auto-generated description, the number of files changed, and the verification badge. Read the summary to confirm the agent addressed the right problem before looking at the code.
-
-### Browse changed files
-
-Tap **Files Changed** to see the list of modified files. Each file shows the net line count (for example, `+87 −3`). Tap a file to open its diff.
-
-### Navigate the diff
-
-The diff view shows removed lines in red and added lines in green. Swipe up and down to scroll through changes within a file. Tap the file name at the top to return to the file list and pick the next file.
-
-<Tip>
-Rotate your phone to landscape orientation for a wider diff view—especially helpful for long lines or side-by-side comparisons.
-</Tip>
-
-### Leave inline comments
-
-Long-press any diff line to open the comment drawer. Type your comment and tap **Post Comment**. The comment is posted directly to the GitHub PR.
-
-To view and reply to existing review comments from other team members, tap the **Comments** tab on the PR detail screen.
-
-</Steps>
-
-## Approve and merge from your phone
-
-<Steps>
-
-### Submit your review
-
-Once you've finished reviewing the diff, tap the **Review** button at the bottom of the PR detail screen.
-
-Choose your review outcome:
-
-- **Approve** — You're happy with the changes
-- **Request Changes** — The agent needs to revise something
-- **Comment** — You want to leave notes without formally approving or blocking
-
-Add an optional note and tap **Submit Review**.
-
-### Merge the PR
-
-After approving (and once all required status checks pass), the **Merge** button becomes active. Tap it to open the merge options:
-
-- **Squash and merge** *(recommended)* — Collapses all agent commits into one clean commit
-- **Merge commit** — Preserves each commit from the agent session
-- **Rebase and merge** — Replays commits on top of the base branch
-
-Select your strategy and tap **Confirm Merge**. GPR merges the PR, closes the linked issue, and sends you a confirmation notification.
-
-<Warning>
-If your repository has branch protection rules requiring a minimum number of approvals, the Merge button stays inactive until all required reviews are in. You'll see a status message explaining which approvals are still needed.
-</Warning>
-
-</Steps>
-
-## Handle a failure from your phone
-
-If a session fails, you'll receive a **Session failed** push notification with a short reason. Tap it to go to the task detail screen and read the **Failure Reason** card.
-
-From the task detail screen you can:
-
-- Tap **Retry** to re-run the session with the same configuration
-- Tap **Revise** to add new instructions before retrying
-- Tap **Reassign** to choose a different machine or agent
-
-For detailed troubleshooting steps, see [Handle Task Failures](/guides/handle-task-failures).
-
-## Using Slack instead of the app
-
-If you prefer to stay in Slack rather than switching to the GPR app, the GPR bot supports several actions via message reactions and slash commands.
-
-### Key Slack actions
-
-| Action | How |
+The phone is the control surface. The machine does the coding.
+
+## You can
+
+- Sign in (Google or GitHub via Firebase)
+- Pair machines via QR
+- Manage workspaces and agent selection
+- Create and assign tasks
+- Answer plan questions
+- Watch live agent sessions
+- Approve or deny tool permissions that reach the app
+- Review diffs and merge-check results
+- Merge GitHub PRs when connected
+- Connect GitHub, Jira, and Slack
+- Share content into the app on Android
+- Get push notifications
+
+## You cannot replace
+
+- Installing `gpr` and agent CLIs (do that on the machine)
+- Local secrets for agents (`ANTHROPIC_API_KEY`, `codex login`, Cursor login)
+- Keeping the daemon process running
+
+## Practical split
+
+| On the phone | On the machine |
 |---|---|
-| Acknowledge a notification | React with ✅ |
-| Retry a failed session | React with 🔁 on the failure notification |
-| Open the task in the GPR app | Tap the task link in any bot message |
-| Get a status update | `/gpr status TASK-123` in any channel |
-| Assign a new task | `/gpr assign TASK-123 --agent claude-code` |
+| Assign, monitor, review, merge | `gpr setup`, `gpr discover`, agent install |
+| Answer questions / approve tools | Fix PATH, auth, failing tests |
+| Watch board | `gpr logs -f` when debugging |
 
-<Note>
-Slack actions require the GPR bot to be installed in your workspace with write permissions. Go to **Settings** → **Integrations** → **Slack** in the GPR app to check the bot's permission scope.
-</Note>
+## Get the app
 
-## Next steps
-
-- [Manage the machines your tasks run on](/guides/manage-multiple-machines)
-- [Assign your first task to an agent](/guides/assign-a-task)
-- [Review and merge a PR](/guides/review-and-merge)
+- Android: [Google Play (`com.pullrequest`)](https://play.google.com/store/apps/details?id=com.pullrequest)
+- iOS: pre-register via [getpullrequest.com](https://getpullrequest.com) until the store listing is live

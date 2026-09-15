@@ -1,202 +1,53 @@
 ---
-title: "Handle a Failed Agent Task and Resume Work Quickly"
-sidebarTitle: "Handle Failures"
-description: "Read failure reasons, retry or revise a failed session, fix environment issues, and know when to handle a task manually instead of re-running the agent."
+title: "Handle task failures"
+description: "Recover from errored, interrupted, and waiting-for-machine states."
 ---
 
-Not every agent session ends with a merged pull request. Tests fail, the task description is ambiguous, the environment has a missing dependency, or the agent simply gets stuck. GPR surfaces the failure reason clearly, gives you tools to diagnose what went wrong, and makes it easy to retry with better context. This guide walks you through each failure scenario and what to do about it.
+## Failed (`errored`)
 
-## Find out why a task failed
+Common causes:
 
-When a session fails, the task status changes to `failed` and GPR reports a short failure reason alongside the full session log.
+- Verification exhausted (tests kept failing)
+- Unrecoverable pipeline error
+- Agent spawn / unresponsive failures
 
-```bash
-gpr task status TASK-123
-```
+**What to do**
 
-```text
-Task:     TASK-123 — Add retry logic to payment processor
-Status:   failed
-Reason:   Verification failed — 2 tests did not pass
-Agent:    claude-code
-Machine:  macbook-pro
-Session:  sess_a1b2c3
-Duration: 11 minutes
-PR:       not opened
-```
+1. Read the task activity and session error.
+2. Fix the underlying issue (tests, agent auth, missing binary).
+3. **Rerun** the task. Rerun resets status to `backlog` and checkpoint to `none`, and re-queues work. The durable ACP session is kept when it is still usable.
 
-The `Reason` field gives you the top-level cause. For more detail, read the session log:
+## Interrupted
 
-```bash
-gpr session logs sess_a1b2c3
-```
+You stopped the run. Checkpoint is preserved.
 
-To jump straight to the failure, pipe through `grep`:
+- Send a follow-up on the linked session or task to continue.
+- Or request a full rerun if you want a clean slate.
+
+## Waiting for machine (`waiting_for_agent`)
+
+The daemon went offline mid-flight.
 
 ```bash
-gpr session logs sess_a1b2c3 | grep -A 10 "FAIL\|error\|failed"
+gpr status
+gpr reconnect
+gpr doctor
 ```
 
-<Tip>
-Add `--tail 50` to `gpr session logs` to read only the last 50 lines, which is usually where the failure appears:
+When the host is back, the task returns to the queue and resumes from the last checkpoint.
+
+## Needs your input
+
+Not a failure. Answer the plan questions on the task.
+
+## Machine-side checks
 
 ```bash
-gpr session logs sess_a1b2c3 --tail 50
-```
-</Tip>
-
-## Retry vs. revise
-
-GPR gives you two distinct commands for re-running a failed task. Use the right one for the situation:
-
-| Command | When to use |
-|---|---|
-| `gpr task retry TASK-123` | The underlying problem was environmental (missing dependency, machine went offline, transient error). The task description is fine as-is. |
-| `gpr task revise TASK-123 --note "..."` | The code or description needs to change. Use this to pass additional instructions to the agent for the new session. |
-
-<Warning>
-Both `gpr task retry` and `gpr task revise` start a fresh session from a clean branch state. Neither command carries over uncommitted changes from the failed session.
-</Warning>
-
-## Common failure types and fixes
-
-### Verification failure (tests or lint)
-
-The agent wrote code but it didn't pass your configured checks. This is the most common failure type and usually means the implementation has a bug or the agent missed an edge case.
-
-**What to do:**
-
-1. Read the test output in the session log to identify which tests failed and why.
-2. Re-run the task with a revised description that includes the failing scenario:
-
-```bash
-gpr task revise TASK-123 \
-  --note "The retry delay test (retry.test.ts line 84) is failing because \
-the backoff multiplier is applied before the base delay, not after. \
-Fix the order of operations in RetryHandler."
+gpr discover    # agent still ready?
+gpr logs -f     # spawn errors, ACP crashes
+gpr doctor      # pairing / websocket health
 ```
 
-`gpr task revise` creates a new session using the original task description plus your `--note` as additional context for the agent.
+Confirm the agent CLI still authenticates (for example `cursor-agent`, `claude`, `codex`).
 
-<Note>
-You don't need to wait or clean up before running `gpr task revise`. GPR automatically starts from a clean branch state, ignoring the failed session's uncommitted changes.
-</Note>
-
-### Task description too vague
-
-The agent completed something, but it's not what you intended—or the session log shows the agent making ambiguous choices without enough guidance.
-
-**What to do:**
-
-Update the task description in Jira or GitHub to add specifics, then re-assign with more explicit context:
-
-```bash
-gpr task assign TASK-123 --agent claude-code --machine macbook-pro \
-  --context "Implement exponential backoff only. Do not add circuit-breaker logic. \
-Max 3 retries. Use the existing Logger class for all log output."
-```
-
-<Tip>
-Effective task descriptions for AI agents include: the acceptance criteria (not just the problem), the files or modules in scope, what the agent should **not** change, and any existing patterns in the codebase to follow.
-</Tip>
-
-### Environment failure
-
-The agent couldn't run because of a problem with the machine itself: missing dependencies, wrong Node/Python version, locked package manager state, or the repository in a dirty working tree.
-
-**Symptoms in the log:**
-
-```text
-[gpr] Error during prepare: npm install failed with exit code 1
-[gpr] ERR! code ERESOLVE
-[gpr] ERR! Could not resolve dependency: peer react@">=18" from ...
-```
-
-**What to do:**
-
-1. SSH into the machine and fix the environment manually.
-2. Confirm the fix works by running the verification command directly.
-3. Retry the task with the same configuration:
-
-```bash
-gpr task retry TASK-123
-```
-
-### Agent got stuck in a loop
-
-The session log shows the agent repeatedly reading and rewriting the same file without making progress. This typically means the task is too large or the agent is missing context about the codebase.
-
-**What to do:**
-
-Re-assign the task with a narrower scope, or break it into smaller subtasks in Jira or GitHub—for example, one task per module or one task per acceptance criterion—then assign each one separately:
-
-```bash
-gpr task assign TASK-123A --agent claude-code --machine macbook-pro \
-  --context "Implement RetryHandler class only. No integration with PaymentProcessor yet."
-```
-
-### Machine went offline mid-session
-
-The machine lost power, went to sleep, or lost network access. GPR pauses the session and retries automatically for up to 10 minutes.
-
-If the machine is back online but the session hasn't resumed:
-
-```bash
-gpr task retry TASK-123
-```
-
-If the machine is still offline, reassign to a different machine:
-
-```bash
-gpr task assign TASK-123 --agent claude-code --machine linux-workstation
-```
-
-## Retry workflows
-
-<Tabs>
-  <Tab title="CLI">
-    <CodeGroup>
-    ```bash Simple retry (same config)
-    gpr task retry TASK-123
-    ```
-
-    ```bash Revise with extra context
-    gpr task revise TASK-123 --note "Your additional instructions here."
-    ```
-
-    ```bash Reassign to a different machine
-    gpr task assign TASK-123 --agent claude-code --machine linux-workstation
-    ```
-
-    ```bash Reassign with a different agent
-    gpr task assign TASK-123 --agent codex --machine macbook-pro
-    ```
-    </CodeGroup>
-  </Tab>
-  <Tab title="Mobile App">
-    1. Tap **Tasks** and find the failed task—it shows a red **Failed** badge.
-    2. Tap the task to open its detail view.
-    3. Read the **Failure Reason** card at the top of the screen.
-    4. Choose your action:
-       - Tap **Retry** to re-run with the same configuration.
-       - Tap **Revise** to add a note before retrying.
-       - Tap **Reassign** to pick a different machine or agent.
-    5. Confirm your choice. The task status updates to **queued** while the new session starts.
-  </Tab>
-</Tabs>
-
-## When to handle a task manually
-
-Some tasks aren't right for an AI agent. If a task has failed three or more times, requires real-world context the agent can't access (such as coordinating a database migration with your ops team), or involves security-sensitive changes you want full control over, handle it manually.
-
-To work on the task yourself without breaking GPR's workflow tracking, re-assign to yourself in Jira or GitHub and update the status to indicate it's being handled directly. GPR will stop scheduling agent sessions for any task that no longer has an agent assignment in the connected issue tracker.
-
-<Note>
-You can continue working on the branch GPR created for the failed session—it stays open until you delete it. Open a PR manually when you're done, and GPR will detect the PR and link it to the original task.
-</Note>
-
-## Next steps
-
-- [Assign the revised task to an agent](/guides/assign-a-task)
-- [Manage machines to prevent environment failures](/guides/manage-multiple-machines)
-- [Monitor the next session closely](/guides/monitor-progress)
+More: [Troubleshooting](/reference/troubleshooting).

@@ -1,135 +1,35 @@
 ---
-title: "Permissions GPR Requests from GitHub, GitLab, and Jira"
-sidebarTitle: "Permissions"
-description: "Every OAuth scope and API token permission GPR requests from GitHub, GitLab, Jira, and Slack, with a clear explanation of what GPR does with each one."
+title: "Permissions"
+description: "How ACP tool permission requests are approved during sessions."
 ---
 
-GPR follows a principle of least privilege: it requests only the permissions it needs to complete a specific job, and it never asks for write access to a system unless creating or updating something in that system is a core part of the workflow. This page lists every permission GPR requests, what it is used for, and what GPR explicitly cannot do with it.
+Coding agents ask before sensitive tools via ACP `session/request_permission`.
 
-## Principle of Least Privilege
+## Interactive sessions (chat)
 
-Before diving into specific permissions, it helps to understand GPR's general approach:
+By default the daemon auto-approves non-mutating kinds:
 
-- **Read-only by default.** GPR reads issue details, repository metadata, and user profiles to understand context. Write permissions are scoped strictly to the actions users explicitly trigger.
-- **No broad admin access.** GPR never requests organization-owner, billing, or repository-settings permissions on any platform.
-- **Scoped tokens where possible.** For platforms that support fine-grained tokens (GitHub), GPR requests per-repository tokens rather than account-wide tokens.
-- **You control revocation.** You can revoke any individual integration from your GPR settings at any time without affecting your other connected services.
+- `read`
+- `search`
+- `think`
+- `fetch`
 
----
+Mutating kinds such as `edit`, `delete`, `move`, and `execute` are forwarded for human approval.
 
-## GitHub
+Override with `GPR_AUTO_APPROVE_TOOL_KINDS` (comma-separated). Set `none` to disable auto-approve.
 
-GPR uses GitHub OAuth for authentication and repository operations. When you connect a GitHub account, GPR requests the following scopes:
+## Task (unattended) sessions
 
-| Scope | What GPR Does With It | What GPR Cannot Do |
-|---|---|---|
-| `repo` (for private repos) | Clone repositories to your local machine via the daemon; open pull requests; read PR status | Access repositories you have not linked to a GPR project |
-| `public_repo` (for public repos) | Same as above, scoped to public repositories | — |
-| `read:user` | Read your GitHub username and email to attribute commits correctly | Read or modify your private profile information |
-| `read:org` | List organizations you belong to so you can link org repositories | Read private org data, member lists, or billing info |
-| `workflow` | Trigger re-runs of GitHub Actions workflows when a task fails CI | Create, modify, or delete workflow definitions |
+Task runs extend the auto-approve set with `execute` because work happens in an isolated git worktree. Shell commands needed for builds/tests can proceed without tapping Approve on every call.
 
-<Note>
-  GPR supports GitHub's **fine-grained personal access tokens** if you prefer not to use OAuth. Fine-grained tokens let you restrict access to specific repositories. See [Connecting GitHub](/integrations/github) for setup instructions.
-</Note>
+`edit` / `delete` / `move` still forward for approval unless you widen `GPR_TASK_AUTO_APPROVE_TOOL_KINDS`.
 
-### What GPR never does with your GitHub access
+## Why `execute` is gated in chat
 
-- It does not push directly to your default branch. All changes go through a pull request.
-- It does not modify branch protection rules, webhooks, or repository settings.
-- It does not read or write GitHub Issues (GPR uses Jira or Linear for issue tracking).
-- It does not access repositories that are not explicitly linked to a GPR project.
+ACP does not distinguish `git status` from destructive shell. Blanket-approving `execute` in interactive mode would auto-allow both.
 
----
+## Practical guidance
 
-## GitLab
-
-GPR connects to GitLab using a personal access token (PAT) that you generate and paste into your GPR settings. GPR asks you to create a token with the following scopes:
-
-| Scope | What GPR Does With It | What GPR Cannot Do |
-|---|---|---|
-| `read_user` | Confirm your identity and attribute commits | Access other users' data |
-| `read_api` | Read project metadata, branch lists, and MR status | Read data from projects you have not linked |
-| `write_repository` | Push feature branches and open merge requests | Modify protected branches or repository settings |
-
-<Info>
-  GPR never stores your GitLab PAT in its cloud. The token is encrypted and stored in your local system keychain by the GPR daemon. GPR's cloud receives only a short-lived, scoped session reference.
-</Info>
-
-### What GPR never does with your GitLab access
-
-- It does not modify CI/CD pipeline definitions.
-- It does not access GitLab groups or sub-groups beyond what is needed to list linked projects.
-- It does not push to protected branches—it opens a merge request instead.
-
----
-
-## Jira
-
-GPR connects to Jira using an Atlassian API token tied to your account. It requests access to the following:
-
-| Permission | What GPR Does With It | What GPR Cannot Do |
-|---|---|---|
-| Read issues | Fetch issue title, description, acceptance criteria, and linked attachments to build task context | Read issues in projects you have not linked |
-| Transition issues | Move an issue to "In Progress" when a task starts and "In Review" when a PR is opened | Delete issues or modify issue schemas |
-| Add comments | Post a comment with the PR link when a pull request is opened | Modify or delete existing comments |
-| Read sprints | Check which sprint an issue belongs to for context | Modify sprint contents or dates |
-
-<Note>
-  GPR uses Atlassian's **OAuth 2.0 (3LO)** flow, which restricts access to the specific Jira sites you authorize. It cannot access other Atlassian products (Confluence, Bitbucket) through this token.
-</Note>
-
----
-
-## Linear
-
-If you use Linear instead of Jira, GPR connects via Linear's OAuth and requests:
-
-| Scope | What GPR Does With It | What GPR Cannot Do |
-|---|---|---|
-| `read` | Fetch issue details, labels, and project context | Read issues outside your authorized workspace |
-| `issues:write` | Update issue status and add comments with PR links | Create, delete, or bulk-modify issues |
-
----
-
-## Slack
-
-GPR connects to Slack to send you task updates and allow you to trigger actions from your phone. It uses Slack's OAuth and requests:
-
-| Scope | What GPR Does With It | What GPR Cannot Do |
-|---|---|---|
-| `chat:write` | Post status updates and PR links to the channel or DM you configure | Post to channels you have not authorized |
-| `commands` | Register the `/gpr` slash command in your workspace | Register commands in workspaces you have not connected |
-| `users:read` | Map your Slack identity to your GPR account | Read other workspace members' profiles or DMs |
-
-<Info>
-  GPR only posts to channels or DMs you explicitly configure during setup. It does not have access to your Slack message history.
-</Info>
-
----
-
-## Revoking Permissions
-
-You can disconnect any integration from **Settings → Integrations** in the GPR dashboard. When you revoke an integration:
-
-1. GPR immediately stops using that service's credentials.
-2. Any in-flight tasks that depend on that integration are paused and flagged in your dashboard.
-3. You should also revoke the OAuth app or API token from the third-party service's own settings to ensure no credentials remain active.
-
-<Tip>
-  Regularly auditing your connected integrations is a good security habit. GPR's dashboard shows the last time each integration was used, making it easy to spot and remove connections you no longer need.
-</Tip>
-
----
-
-<CardGroup cols={2}>
-  <Card title="Local Execution" icon="computer" href="/security/how-local-execution-works">
-    Understand how agents run on your machine and what they can access.
-  </Card>
-  <Card title="Data & Connectivity" icon="shield" href="/security/data-and-connectivity">
-    What data GPR transmits to its cloud and what stays local.
-  </Card>
-  <Card title="Security FAQ" icon="circle-question" href="/security/security-faq">
-    Quick answers to common questions about GPR's security model.
-  </Card>
-</CardGroup>
+- Keep defaults for interactive work.
+- Watch the phone for permission prompts on edits during tasks if your agent emits them.
+- Do not set broad auto-approve on shared machines you do not trust.

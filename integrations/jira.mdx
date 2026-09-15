@@ -1,207 +1,26 @@
 ---
-title: "Connect GPR to Jira: Tickets, Statuses, and Field Mapping"
-sidebarTitle: "Jira"
-description: "Link your Jira project to GPR so tickets automatically trigger coding agents, transition through statuses, and stay in sync with every pull request."
+title: "Jira"
+description: "Connect Jira to sync issues onto the GPR board."
 ---
 
-GPR treats a Jira ticket as the starting point for a complete development workflow. When you assign a ticket to GPR (or a label triggers automation), GPR picks up the ticket details, hands them to your chosen coding agent, verifies the result locally, and pushes a pull request — all while moving the ticket through your board's statuses so your team always knows where work stands. The connection is established with a Jira API token, which means no third-party OAuth app approval is required from your Atlassian admin.
+Jira is an optional issue-tracker enrichment. Connect it when you want Jira issues on the GPR board alongside in-app and GitHub tasks.
 
-## Prerequisites
+## Connect
 
-- A Jira Cloud account (Jira Software or Jira Work Management). Jira Data Center support is available on the Enterprise plan.
-- A GPR account with at least one project configured.
-- Your Jira site URL (e.g., `https://yourcompany.atlassian.net`).
+1. Open **Settings → Connections**.
+2. Connect **Jira** and finish OAuth.
+3. Link the Jira project / site the app prompts for.
 
-## Create a Jira API Token
+## What you get
 
-<Steps>
-  <Step title="Open Atlassian account settings">
-    Go to [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and log in with the Jira account GPR should act as.
+- Issue sync onto the kanban board (`source_provider: jira`)
+- Task metadata from the Jira issue
+- Status mapping back through the sync worker where configured
 
-    <Tip>
-      Create a dedicated service account (e.g., `gpr-bot@yourcompany.com`) for GPR rather than using a personal account. This prevents workflow disruption if team members change roles.
-    </Tip>
-  </Step>
+## What you still need
 
-  <Step title="Create a new token">
-    Click **Create API token**, give it a recognizable label such as `GPR Integration`, and click **Create**. Copy the token — you won't be able to see it again.
-  </Step>
+- A paired machine with `gpr` online
+- A ready coding agent on that machine
+- GitHub (or local git remotes) if you want hosted pull requests
 
-  <Step title="Store the token securely">
-    Add the token to your environment or a `.env` file that GPR can read:
-
-    ```bash
-    export JIRA_API_TOKEN="your-token-here"
-    export JIRA_EMAIL="gpr-bot@yourcompany.com"
-    export JIRA_SITE="https://yourcompany.atlassian.net"
-    ```
-
-    GPR reads these variables automatically, or you can pass them explicitly during setup.
-  </Step>
-</Steps>
-
-## Connect Jira in GPR
-
-<Steps>
-  <Step title="Run the connect command">
-    ```bash
-    gpr integration add jira \
-      --site $JIRA_SITE \
-      --email $JIRA_EMAIL \
-      --api-key-env JIRA_API_TOKEN
-    ```
-
-    GPR validates the credentials and lists all Jira projects your service account can access.
-  </Step>
-
-  <Step title="Select a project">
-    Choose the Jira project(s) you want GPR to monitor:
-
-    ```bash
-    gpr jira project add MYPROJECT
-    ```
-
-    You can add multiple projects. GPR watches each one independently and applies per-project config where specified.
-  </Step>
-
-  <Step title="Configure the trigger condition">
-    Tell GPR which tickets to act on. The default trigger is an assignee of `gpr-bot` or a label of `gpr-ready`, but you can customize this:
-
-    ```yaml
-    # gpr.config.yaml
-    jira:
-      site: https://yourcompany.atlassian.net
-      email_env: JIRA_EMAIL
-      api_key_env: JIRA_API_TOKEN
-      projects:
-        - key: MYPROJECT
-          trigger:
-            type: label           # "label" | "assignee" | "transition"
-            value: gpr-ready
-    ```
-  </Step>
-
-  <Step title="Verify the connection">
-    ```bash
-    gpr integration status jira
-    ```
-
-    ```
-    ✔ Jira  connected  (site: yourcompany.atlassian.net, projects: MYPROJECT)
-    ```
-  </Step>
-</Steps>
-
-## Project Board Configuration
-
-GPR maps your Jira workflow statuses to its own internal lifecycle stages. The default mapping covers the most common Jira Software configurations, but you can override it in `gpr.config.yaml`.
-
-### Default status mapping
-
-| GPR stage | Default Jira status |
-|---|---|
-| `picked_up` | In Progress |
-| `agent_running` | In Progress |
-| `verification_passed` | In Review |
-| `pr_opened` | In Review |
-| `complete` | Done |
-| `failed` | Reopened (or To Do) |
-
-### Customizing the mapping
-
-```yaml
-# gpr.config.yaml
-jira:
-  projects:
-    - key: MYPROJECT
-      status_map:
-        picked_up: "In Progress"
-        agent_running: "In Progress"
-        verification_passed: "Ready for Review"
-        pr_opened: "Ready for Review"
-        complete: "Done"
-        failed: "Needs Attention"
-```
-
-<Note>
-  Status names are case-sensitive and must match your Jira workflow exactly. Run `gpr jira statuses MYPROJECT` to list all available statuses for a project.
-</Note>
-
-## How GPR Picks Up Tickets
-
-GPR polls your configured Jira projects on a configurable interval (default: 60 seconds) and picks up any ticket that matches the trigger condition. For each ticket, GPR:
-
-1. Reads the **summary**, **description**, and **acceptance criteria** fields to build a task prompt for the coding agent.
-2. Transitions the ticket to `In Progress` (or your mapped `picked_up` status) to signal that work has started.
-3. Passes the prompt to the configured coding agent running on your local machine.
-4. Monitors the agent run, transitions statuses at each lifecycle stage, and posts a comment on the ticket with progress updates.
-
-GPR comments on the ticket at each major step, including a link to the GPR run log and, once the PR is open, a direct link to the pull request.
-
-## Field Mapping
-
-GPR reads and writes several Jira fields. You can remap any of these in your config.
-
-### Fields GPR reads
-
-| Field | Default Jira field | Purpose |
-|---|---|---|
-| Task title | Summary | Headline for the coding agent prompt |
-| Task body | Description | Detailed requirements |
-| Acceptance criteria | Acceptance Criteria (if present) | Appended to the prompt for the agent |
-| Priority | Priority | Passed to the agent as context |
-| Labels | Labels | Used for trigger matching |
-
-### Fields GPR writes
-
-| Field | Default Jira field | Written when |
-|---|---|---|
-| Status | Status | At each lifecycle transition |
-| PR link | Remote Link (web link) | When PR is opened on GitHub/GitLab |
-| GPR run ID | Comment | At pickup and completion |
-
-### Custom field mapping
-
-```yaml
-# gpr.config.yaml
-jira:
-  projects:
-    - key: MYPROJECT
-      field_map:
-        task_body: description
-        acceptance_criteria: customfield_10016   # your custom field ID
-        pr_link_field: customfield_10100         # write PR link to a custom field
-```
-
-<Tip>
-  To find a custom field ID, use `gpr jira fields MYPROJECT`. The command lists every field with its internal ID.
-</Tip>
-
-## Transition Permissions
-
-The service account used for GPR must have **transition** permission on the project workflow. If transitions fail silently, ask your Jira admin to verify that the service account's role includes the `Transition Issues` project permission.
-
-<Warning>
-  If your Jira workflow has mandatory fields on a transition screen (for example, a required "Resolution" field when moving to Done), GPR will fail that transition. Either make those fields optional or configure GPR to set them:
-
-  ```yaml
-  jira:
-    projects:
-      - key: MYPROJECT
-        transition_fields:
-          Done:
-            resolution: Fixed
-  ```
-</Warning>
-
-## Disconnect or Rotate Credentials
-
-To rotate the API token, update the environment variable or secret store with the new token value — GPR picks it up on the next poll cycle without a restart.
-
-To disconnect Jira entirely:
-
-```bash
-gpr integration remove jira
-```
-
-This stops all Jira polling and removes the stored credentials from GPR. Active runs will complete against any already-fetched ticket data, but no new tickets will be picked up.
+Jira does not run the agent. It supplies work items into the same task pipeline.

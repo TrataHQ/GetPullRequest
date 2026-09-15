@@ -1,212 +1,52 @@
 ---
-title: "Run Your First Automated Task and Open a Pull Request"
-sidebarTitle: "First Task"
-description: "Create a GPR task from a plain description or Jira ticket, watch your coding agent work in real time, and review the pull request it opens automatically."
+title: "Run your first task"
+description: "Create a task on the board and watch the agent work on your paired machine."
 ---
 
-With your machine connected, GitHub authorized, and a coding agent configured, you're ready to hand GPR its first piece of work. A task is the core unit of work in GPR—it's a description of what needs to change, bound to a repository and an agent. GPR dispatches the task to your machine, supervises the agent as it edits code and runs tests, and opens a pull request when the work passes verification. The whole loop typically takes two to ten minutes depending on the size of the change.
+With a paired workspace, a ready agent, and (optionally) GitHub connected, you can run a task end to end.
 
-## Create and run a task
-
-<Steps>
-  <Step title="Create your first task">
-    Run `gpr task create` with a description of the change you want and the target repository:
-
-    ```bash
-    gpr task create "Fix the login button not responding on mobile Safari" \
-      --repo myorg/myapp
-    ```
-
-    GPR creates the task and prints a task ID:
-
-    ```
-    ✓ Task created: tsk_01hxb3n7p2qm4v6r
-      Description: Fix the login button not responding on mobile Safari
-      Repo:        myorg/myapp
-      Status:      pending
-    ```
-
-    <Tip>
-      Wrap multi-word descriptions in quotes. You can be as specific as you like — more context gives the agent more to work with. Try including file names, error messages, or acceptance criteria directly in the description.
-    </Tip>
-  </Step>
-
-  <Step title="Assign the task to an agent">
-    Assign the task to a registered agent on your machine:
-
-    ```bash
-    gpr task assign tsk_01hxb3n7p2qm4v6r --agent claude-code
-    ```
-
-    GPR confirms the assignment:
-
-    ```
-    ✓ Task tsk_01hxb3n7p2qm4v6r assigned to claude-code (work-laptop)
-      Status: assigned
-    ```
-
-    <Note>
-      If you have a default agent configured for the repository (via `gpr repo config myorg/myapp --agent claude-code`), GPR assigns the task automatically and you can skip this step.
-    </Note>
-  </Step>
-
-  <Step title="Watch the task run">
-    Stream live logs from the task as it executes:
-
-    ```bash
-    gpr task logs tsk_01hxb3n7p2qm4v6r --follow
-    ```
-
-    You'll see the agent's reasoning and actions in real time:
-
-    ```
-    [claude-code] Reading task: "Fix the login button not responding on mobile Safari"
-    [claude-code] Cloning repo context from myorg/myapp (main)...
-    [claude-code] Searching for login button component...
-    [claude-code] Found: src/components/LoginButton.tsx
-    [claude-code] Identified issue: missing touch-action CSS on button element
-    [claude-code] Applying fix to src/components/LoginButton.tsx
-    [claude-code] Running tests: npm test -- --testPathPattern=LoginButton
-    [claude-code] ✓ 6 tests passed
-    [gpr]         Verification passed. Creating pull request...
-    [gpr]         ✓ PR opened: https://github.com/myorg/myapp/pull/214
-    ```
-  </Step>
-
-  <Step title="Review the pull request">
-    Open the PR link that GPR printed, or check the task status from the CLI:
-
-    ```bash
-    gpr task show tsk_01hxb3n7p2qm4v6r
-    ```
-
-    ```
-    Task:       tsk_01hxb3n7p2qm4v6r
-    Status:     pr_open
-    PR:         https://github.com/myorg/myapp/pull/214
-    Branch:     gpr/fix-login-button-mobile-safari
-    Tests:      ✓ 6 passed, 0 failed
-    Duration:   3m 42s
-    Agent:      claude-code (claude-opus-4-5)
-    ```
-
-    The pull request includes:
-    - A description of **what changed** and **why**
-    - A link back to the original GPR task
-    - The full test run output as a PR comment
-    - A diff of every file modified
-  </Step>
-
-  <Step title="Merge or request changes">
-    Review the diff in GitHub as you would any pull request. If everything looks good, approve and merge — the task status advances to `merged` automatically. If you want changes, add a review comment on the PR and then re-run the task to incorporate your feedback:
-
-    ```bash
-    gpr task retry tsk_01hxb3n7p2qm4v6r \
-      --note "Also update the loading spinner to match the new button style"
-    ```
-  </Step>
-</Steps>
-
-## Other ways to create tasks
-
-<Tabs>
-  <Tab title="From a Jira ticket">
-    If you've connected Jira, GPR can pull the task description directly from a ticket:
-    ```bash
-    gpr task create --from-jira ACME-1042 --repo myorg/myapp
-    ```
-    GPR reads the ticket title, description, and acceptance criteria and uses them as the task brief.
-  </Tab>
-  <Tab title="From a GitHub Issue">
-    Link a task directly to an open GitHub Issue:
-    ```bash
-    gpr task create --from-issue myorg/myapp#88
-    ```
-    When the PR is opened, GPR automatically adds `Closes #88` to the description.
-  </Tab>
-  <Tab title="From your phone">
-    Open the GPR mobile app, tap **New Task**, type your description, and tap **Run**. You get a push notification when the PR is ready — no laptop required.
-  </Tab>
-  <Tab title="Triggered by Slack">
-    Mention the GPR bot in any Slack channel where your repo is connected:
-    ```
-    @gpr create task "Increase the rate limit on the /export endpoint" in myorg/api-service
-    ```
-    GPR replies with a task link and a PR link when the work is done.
-  </Tab>
-</Tabs>
-
-## Manage tasks
+## Checklist
 
 ```bash
-# List all tasks for your team
-gpr task list
-
-# Filter by repository
-gpr task list --repo myorg/myapp
-
-# Filter by status
-gpr task list --status failed
-
-# Assign a pending task to an agent
-gpr task assign tsk_01hxb3n7p2qm4v6r --agent codex
-
-# Cancel a running task
-gpr task cancel tsk_01hxb3n7p2qm4v6r
-
-# Re-run a completed or failed task from scratch
-gpr task retry tsk_01hxb3n7p2qm4v6r
+gpr status
+gpr discover
+gpr doctor
 ```
 
-## Understand task statuses
+Confirm:
 
-| Status | Meaning |
-|---|---|
-| `pending` | Task has been created and is waiting to be assigned to an agent |
-| `assigned` | Task has been assigned to an agent and is queued on the target machine |
-| `running` | Agent is actively working on the task |
-| `verifying` | GPR is running tests and checking the diff before opening the PR |
-| `pr_open` | PR has been opened successfully and is awaiting review |
-| `merged` | The pull request was merged and the task is complete |
-| `failed` | Agent encountered an error or tests didn't pass — check `gpr task logs` |
+- Daemon online
+- At least one agent `ready`
+- Workspace visible in the app
 
-<Warning>
-  If a task reaches `failed` status, run `gpr task logs <task-id>` first — the agent usually explains what it tried and why it stopped. Many failures are recoverable with a more specific task description or a `gpr task retry`.
-</Warning>
+## Create a task
 
-## What happens if a task fails verification?
+In the mobile app:
 
-GPR runs a verification step before opening any PR. If the agent's changes cause tests to fail, GPR:
+1. Open the kanban board.
+2. Create a new task with a clear title and description, **or** sync one from GitHub / Jira / Slack.
+3. Assign it to your paired workspace / agent if prompted.
 
-1. **Does not open a PR** — it never pushes broken code to your repository.
-2. **Records the failure** with the full test output in the task log.
-3. **Notifies you** via the GPR dashboard, the mobile app, or Slack (depending on your notification settings).
+From GitHub: label an issue `gpr:agent`, assign it to yourself, and let sync pick it up.
 
-You can then retry the task, add clarifying notes, or switch to a different agent:
+## What happens next
 
-```bash
-gpr task retry tsk_01hxb3n7p2qm4v6r --agent codex
-```
+1. The queue **claims** the task.
+2. The daemon creates a durable ACP **session** and a git **worktree**.
+3. The pipeline runs: plan → implement → verify → open PR.
+4. The task parks in **In review** when a PR is open, then **Done** when the PR merges.
 
-<Note>
-  Verification runs your repository's existing test command. GPR detects it automatically from `package.json`, `Makefile`, `pyproject.toml`, or similar. You can override it per repo: `gpr repo config myorg/myapp --test-command "make test-unit"`.
-</Note>
+If planning needs answers, the task moves to **Needs your input**. Reply on the task to continue.
 
-## You're all set
+## Watch it live
 
-You've completed the full GPR setup. Your machine is connected, GitHub is authorized, your coding agent is configured, and you've run your first automated task through to a pull request.
+- Board lane shows status (`In progress`, `In review`, …).
+- Task detail shows phase / activity.
+- Linked agent session streams ACP output over the relay.
+- On the machine: `gpr logs -f`
 
-<CardGroup cols={2}>
-  <Card title="Connect Jira" icon="jira" href="/integrations/jira">
-    Route Jira tickets directly to your coding agent and close issues automatically when PRs merge.
-  </Card>
-  <Card title="Work from Your Phone" icon="mobile" href="/guides/work-from-your-phone">
-    Create tasks and get PR notifications without leaving your phone.
-  </Card>
-  <Card title="Task Configuration" icon="sliders" href="/reference/configuration">
-    Set per-repo defaults, custom test commands, PR templates, and more.
-  </Card>
-  <Card title="Agent Reference" icon="robot" href="/get-started/connect-a-coding-agent">
-    Full configuration options for Claude Code, Codex, Cursor, and custom ACP agents.
-  </Card>
-</CardGroup>
+## When you are done
+
+Review the diff in the app, merge the PR (with GitHub connected), or leave feedback for a rerun.
+
+More detail: [Assign a task](/guides/assign-a-task), [Monitor progress](/guides/monitor-progress), [Review and merge](/guides/review-and-merge).

@@ -1,161 +1,42 @@
 ---
-title: "Configure Claude Code: GPR Agent Setup and Options"
-sidebarTitle: "Claude Code"
-description: "Install Claude Code, add it to GPR with your Anthropic API key, tune model and token settings, and get the most out of Anthropic's agentic coding model."
+title: "Claude Code"
+description: "Use Claude Code as an ACP coding agent with GPR."
 ---
 
-Claude Code is Anthropic's purpose-built agentic coding tool, designed to work directly in your terminal and codebase with minimal scaffolding. When paired with GPR, Claude Code becomes the engine that reads ticket requirements, explores your repository, writes and revises code, and runs your tests — all before GPR opens a pull request on your behalf. This guide walks you through installing Claude Code, registering it as a GPR agent, and configuring it for reliable, high-quality results.
+Catalog id: `claude`  
+Display name: Claude Agent  
+Requires: `claude` on `PATH`  
+ACP bridge binary: `claude-code-acp` next to the `gpr` binary (usually `~/.local/bin/claude-code-acp`)
 
-## Prerequisites
+## Setup
 
-- Node.js 18 or later installed on your machine.
-- An [Anthropic API key](https://console.anthropic.com/settings/keys) with access to the Claude model you plan to use.
-- GPR CLI installed (`npm install -g gpr`) and authenticated (`gpr auth login`).
-
-## Install Claude Code
-
-<Tabs>
-  <Tab title="npm">
-    ```bash
-    npm install -g @anthropic-ai/claude-code
-    ```
-  </Tab>
-  <Tab title="Homebrew (macOS)">
-    ```bash
-    brew install anthropic/tap/claude-code
-    ```
-  </Tab>
-</Tabs>
-
-Verify the installation:
+1. Install the Claude Code CLI so `claude` resolves in your shell.
+2. Authenticate. GPR’s catalog note: uses `ANTHROPIC_API_KEY` (API billing).
+3. Install the ACP adapter binary as `claude-code-acp` in the same directory as `gpr`.
+4. Verify:
 
 ```bash
-claude --version
+gpr discover
 ```
 
-<Note>
-  Claude Code requires Node.js 18+. If `claude --version` fails, check your Node version with `node --version` and upgrade if needed.
-</Note>
+Claude should show status `ready`.
 
-## Set Your Anthropic API Key
+5. Select **Claude** on the workspace in the app.
 
-Store your API key as an environment variable. GPR reads it by name — no key is ever stored in plaintext in GPR's config files.
+## Launch shape
+
+The daemon runs the adapter (`claude-code-acp`), which speaks ACP on stdio and drives the Claude CLI.
+
+## Common failures
+
+| Symptom | Check |
+|---|---|
+| `not installed` | `which claude` |
+| `needs adapter` | `ls "$(dirname "$(which gpr)")/claude-code-acp"` |
+| Auth errors in session | API key / Claude login on that machine |
+| Works in terminal, not in GPR | Daemon PATH; restart daemon after installing CLIs |
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxx"
+gpr restart
+gpr logs -f
 ```
-
-Add this line to your shell profile (`~/.zshrc`, `~/.bashrc`, or equivalent) to persist it across sessions.
-
-## Register Claude Code with GPR
-
-<Steps>
-  <Step title="Add Claude Code as a GPR agent">
-    ```bash
-    gpr agent add claude-code
-    ```
-
-    GPR auto-detects the `claude` binary on your `PATH` and verifies it can reach the Anthropic API using `ANTHROPIC_API_KEY`. A success message confirms the agent is ready.
-  </Step>
-
-  <Step title="Verify the agent is registered">
-    ```bash
-    gpr agent list
-    ```
-
-    ```
-    NAME          TYPE          STATUS    MODEL
-    claude-code   claude-code   ready     claude-opus-4-5
-    ```
-  </Step>
-
-  <Step title="Assign the agent to a project (optional)">
-    If you have multiple agents registered, assign Claude Code as the default for a specific project:
-
-    ```bash
-    gpr project set-agent claude-code --project my-project
-    ```
-  </Step>
-</Steps>
-
-## Configuration Options
-
-You can fine-tune Claude Code's behavior in `gpr.config.yaml`. All fields are optional — GPR uses sensible defaults if omitted.
-
-```yaml
-# gpr.config.yaml
-agents:
-  - name: claude-code
-    type: claude-code
-    api_key_env: ANTHROPIC_API_KEY     # env var holding your Anthropic key
-    model: claude-opus-4-5             # model to use for coding tasks
-    max_tokens: 8192                   # max tokens per agent response turn
-    timeout_seconds: 600               # abort the agent run after this long
-    max_turns: 40                      # max conversation turns before giving up
-    working_directory: "."             # repo root (default: current directory)
-    env:                               # extra env vars injected into the agent process
-      NODE_ENV: test
-```
-
-### Model options
-
-| Model | Best for | Notes |
-|---|---|---|
-| `claude-opus-4-5` | Complex, multi-file tasks | Highest quality; slower and higher cost |
-| `claude-sonnet-4-5` | Balanced performance | Good default for most tasks |
-| `claude-haiku-4-5` | Fast, simple changes | Lower latency; best for small patches |
-
-<Tip>
-  For most teams, `claude-sonnet-4-5` offers the best balance between output quality and cost. Reserve `claude-opus-4-5` for tickets that involve architectural changes or large refactors.
-</Tip>
-
-### Passing a custom API key variable name
-
-If your key is stored under a different name, point GPR to the right variable:
-
-```bash
-gpr agent add claude-code --api-key-env MY_ANTHROPIC_KEY
-```
-
-## Tips for Best Results
-
-**Write clear acceptance criteria in your tickets.** Claude Code uses the full ticket description as its task prompt. The more specific your acceptance criteria — including expected inputs, outputs, edge cases, and which files are in scope — the fewer revision cycles you'll need.
-
-**Keep your test suite fast and deterministic.** GPR runs your tests locally after Claude Code finishes and uses the results to decide whether to open a PR. Slow or flaky tests increase run time and can trigger false failures. Mark slow integration tests so Claude Code can skip them during the agent run.
-
-**Use a `.claude/` project configuration file.** Claude Code respects a `CLAUDE.md` file at your repository root. Use it to define coding conventions, banned patterns, and project-specific context. GPR will include its contents automatically in every agent session.
-
-```markdown
-<!-- CLAUDE.md -->
-## Coding conventions
-- Use TypeScript strict mode
-- All functions must have JSDoc comments
-- Prefer `const` over `let`
-- Do not modify files in `src/generated/`
-```
-
-**Set a realistic `timeout_seconds`.** Large tasks can take several minutes. If GPR times out before Claude Code finishes, the run is marked failed. Start with 600 seconds and adjust based on your observed run times.
-
-<Warning>
-  Claude Code will read and modify files in your working directory. Always run GPR on a clean branch or in a repository where the working tree can be safely modified. GPR creates an isolated branch before invoking the agent, but ensure no uncommitted changes are present that the agent might conflict with.
-</Warning>
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="'claude: command not found' after installation">
-    Ensure the npm global bin directory is on your `PATH`. Run `npm bin -g` to find the global bin path and add it to your shell profile, then restart your terminal.
-  </Accordion>
-
-  <Accordion title="'authentication_error' from the Anthropic API">
-    Double-check that `ANTHROPIC_API_KEY` is set in the same shell session where you run GPR. Run `echo $ANTHROPIC_API_KEY` — if it prints empty, export the variable again or add it to your shell profile.
-  </Accordion>
-
-  <Accordion title="Agent run times out before finishing">
-    Increase `timeout_seconds` in your agent config. If the task is consistently too large for a single run, break it into smaller tickets or increase `max_turns` to allow more back-and-forth between GPR and Claude Code.
-  </Accordion>
-
-  <Accordion title="Claude Code modifies files outside the expected scope">
-    Add a `CLAUDE.md` file explicitly listing which directories are off-limits (e.g., `Do not modify files in src/generated/ or infrastructure/`). Claude Code respects these constraints when they are clearly stated.
-  </Accordion>
-</AccordionGroup>

@@ -1,142 +1,34 @@
 ---
-title: "Assign a Jira or GitHub Issue to an AI Coding Agent"
-sidebarTitle: "Assign a Task"
-description: "Route any Jira or GitHub issue to an AI coding agent running on a specific local machine, choosing your agent and confirming the assignment in seconds."
+title: "Assign a task"
+description: "Create or sync a task and send it to a paired workspace agent."
 ---
 
-When you're ready to hand off a coding task to an AI agent, GPR lets you specify exactly which agent handles the work and exactly which machine it runs on. This keeps your execution environment consistent, your credentials local, and your codebase changes verifiable before any pull request is opened.
+## Create in the app
 
-<Steps>
+1. Open the board.
+2. Create a task with a specific title and acceptance criteria in the body.
+3. Assign it to a workspace that is online and has a ready agent.
 
-### Pick your task
+Vague prompts produce vague plans. Say what files, behavior, and tests matter.
 
-Identify the Jira issue key or GitHub issue number you want to assign. GPR works with tasks already tracked in your connected project management tool, so the issue must exist before you assign it.
+## Sync from GitHub
 
-To list open tasks synced to GPR, run:
+1. Connect GitHub under **Settings → Connections**.
+2. Add label `gpr:agent` on the issue.
+3. Assign the issue to yourself.
+4. Wait for sync, or open the board and confirm the task appeared.
 
-```bash
-gpr task list --status open
-```
+## Sync from Jira or Slack
 
-The output shows each task's key, title, and current status. Copy the key (for example, `TASK-123`) for the next step.
+- **Jira**: connect under **Settings → Connections**, link a project, then sync issues onto the board.
+- **Slack**: connect Slack, then create tasks from supported @mention flows in linked channels.
 
-### Check your available machines
+## What assignment actually does
 
-Before assigning, confirm which local machines are registered and online. A machine must be running the GPR daemon to accept work.
+Assignment targets a **workspace**, not a free-floating model. That workspace’s machine must be online. The queue leases the task, the daemon opens a durable session, and the pipeline starts at checkpoint `none` (plan).
 
-```bash
-gpr machine list
-```
+## After assign
 
-```text
-NAME                  STATUS    AGENT SUPPORT                    LAST SEEN
-macbook-pro           online    claude-code, codex, cursor       just now
-linux-workstation     online    claude-code, acp-generic         2 min ago
-old-mbp               offline   claude-code                      3 days ago
-```
-
-Choose a machine whose status is `online`. Assigning to an offline machine queues the task—it will start when the machine reconnects.
-
-<Tip>
-Run `gpr machine list` before assigning to confirm the target machine is online and shows the agent you want to use in its **Agent Support** column.
-</Tip>
-
-### Choose your agent
-
-Each registered machine lists the agents it supports. Select the agent best suited to the task:
-
-| Agent | Best for |
-|---|---|
-| `claude-code` | General-purpose coding, refactoring, multi-file changes |
-| `codex` | Targeted edits, scripting, quick fixes |
-| `cursor` | IDE-integrated tasks where Cursor is already open |
-| `acp-generic` | Any ACP-compatible agent you've configured yourself |
-
-### Assign the task
-
-<Tabs>
-  <Tab title="CLI">
-    Run `gpr task assign` with the task key, agent, and machine:
-
-    ```bash
-    gpr task assign TASK-123 --agent claude-code --machine macbook-pro
-    ```
-
-    GPR responds with a confirmation and a session link:
-
-    ```
-    ✔ Task TASK-123 assigned to claude-code on macbook-pro
-      Session: https://app.getpullrequest.com/sessions/sess_a1b2c3
-      Run `gpr task status TASK-123` to follow progress.
-    ```
-
-    To assign without specifying a machine, let GPR auto-select the best available machine:
-
-    ```bash
-    gpr task assign TASK-123 --agent claude-code
-    ```
-
-    <Note>
-    Auto-selection picks the online machine that most recently ran a task for the same repository. You can override this at any time by passing `--machine`.
-    </Note>
-
-    To include a one-line hint that guides the agent's approach, use `--context`:
-
-    ```bash
-    gpr task assign TASK-123 --agent claude-code --machine macbook-pro \
-      --context "Focus only on the payments module; do not touch auth."
-    ```
-  </Tab>
-  <Tab title="Mobile App">
-    1. Open the **GPR** app and tap **Tasks** in the bottom navigation bar.
-    2. Find your task by scrolling or searching by key or title.
-    3. Tap the task to open its detail view, then tap **Assign to Agent**.
-    4. On the **Choose Agent** screen, select your agent (for example, **Claude Code**).
-    5. On the **Choose Machine** screen, select an online machine. Machines with a green dot are ready; grey means offline.
-    6. (Optional) Tap **Add Context** to type a short instruction for the agent.
-    7. Tap **Confirm Assignment**. You'll see a success banner and the task card updates to **In Progress**.
-
-    <Tip>
-    Tap the bell icon on the task detail screen to enable push notifications for this specific task—you'll be alerted when the agent opens a PR or encounters an error.
-    </Tip>
-  </Tab>
-</Tabs>
-
-### Confirm the assignment
-
-After assigning, verify the task registered correctly:
-
-```bash
-gpr task status TASK-123
-```
-
-```text
-Task:     TASK-123 — Add retry logic to payment processor
-Status:   running
-Agent:    claude-code
-Machine:  macbook-pro
-Session:  sess_a1b2c3
-Started:  2 minutes ago
-```
-
-A status of `running` means the agent is actively working. A status of `queued` means the machine is offline or busy—it will start automatically when capacity is available.
-
-</Steps>
-
-## Re-assigning a task
-
-If you need to move a task to a different machine or agent after assignment, cancel the current session and re-assign:
-
-```bash
-gpr task assign TASK-123 --agent codex --machine linux-workstation
-```
-
-<Warning>
-Re-assigning a running task stops the agent mid-work. Any uncommitted changes the agent made are discarded. Review the session log with `gpr session logs sess_a1b2c3` before re-assigning if you want to preserve partial progress notes.
-</Warning>
-
-## Next steps
-
-- [Monitor agent progress in real time](/guides/monitor-progress)
-- [Review and merge the pull request GPR opens](/guides/review-and-merge)
-- [Manage your registered machines](/guides/manage-multiple-machines)
+- Needs questions → reply on the task ([Monitor progress](/guides/monitor-progress)).
+- Host offline → task waits (`waiting_for_agent`) until the daemon reconnects.
+- Failure → see [Handle task failures](/guides/handle-task-failures).

@@ -1,165 +1,39 @@
 ---
-title: "Machines: Register Your Local Dev Computer with GPR"
-sidebarTitle: "Machines"
-description: "A Machine is a registered local development computer that runs agent sessions. Learn how GPR routes tasks to machines and how to manage multiple machines."
+title: "Machines"
+description: "A machine is the paired computer that runs the gpr daemon."
 ---
 
-A Machine is any local development computer—a laptop, a desktop workstation, a dedicated build server—that you've enrolled with GPR. When GPR dispatches a task, it starts the agent session on one of your registered machines, inside the actual repository checkout on that machine. This means the agent runs in your real environment: your local dependencies, your `.env` files, your filesystem, and your network—not a sandboxed cloud container.
+A **machine** is a computer running the `gpr` daemon with a live websocket to the backend.
 
-You can register as many machines as you like. GPR tracks which ones are online and available, and routes tasks to them automatically.
+## Responsibilities
 
-## Why Local Machines
+- Stay connected to the hub (`wss://api.getpullrequest.com/gpr/ws/daemon` in production)
+- Launch ACP agents for sessions
+- Manage git worktrees for tasks
+- Forward permission requests and stream agent output
 
-Running agent sessions on your own machine has concrete advantages:
+## Lifecycle commands
 
-- **No secrets leave your environment.** API keys, database credentials, and environment variables stay local.
-- **Agents use your real toolchain.** The correct Node, Python, or Go version; your local databases; your VPN-gated internal APIs.
-- **Verification runs in the same context.** Tests that pass locally are far more meaningful than tests in a stripped-down CI environment.
-- **No cloud compute costs.** Agents use the hardware you already own.
+```bash
+gpr setup          # pair + install startup service + start
+gpr status         # local state
+gpr doctor         # health checks
+gpr logs -f        # follow daemon log
+gpr restart        # restart via OS service
+gpr reconnect      # force reconnect after offline
+gpr uninstall      # stop service (add --purge to delete ~/.gpr)
+```
 
-<Info>
-  GPR communicates with your machine through a lightweight, outbound-only daemon process. Your machine does not need to be reachable from the public internet—it polls GPR for work and opens sessions over the outbound connection.
-</Info>
+## Online vs agent alive
 
-## Registering a Machine
+`gpr doctor` / hub “online” means the **daemon websocket** is registered. It does not mean Cursor or Claude is already running. Agents spawn when a session starts.
 
-<Steps>
-  <Step title="Install the GPR CLI">
-    Download and install the GPR CLI on the machine you want to register.
+## Data on disk
 
-    ```bash
-    # macOS / Linux
-    curl -fsSL https://install.getpullrequest.com | bash
-
-    # Verify the installation
-    gpr --version
-    ```
-  </Step>
-  <Step title="Connect the machine to GPR">
-    Run `gpr connect machine` and follow the prompts. This authenticates the machine with your GPR account and registers it so GPR can dispatch tasks to it.
-
-    ```bash
-    gpr connect machine
-    # Opens a browser window for authentication.
-    # On a headless server, follow the printed URL on another device.
-    # ? Machine name: macbook-pro
-    # ✓ Machine registered. ID: mch_a1b2c3d4
-    # ✓ Status: online
-    ```
-
-    Give the machine a name that helps you identify it (for example, `macbook-pro` or `dev-server`). The name appears in the GPR app when you select which machine to run tasks on.
-  </Step>
-  <Step title="Start the daemon">
-    Start the daemon process. On most setups you'll want it to run automatically at login.
-
-    ```bash
-    # Start the daemon in the foreground (useful for testing)
-    gpr daemon start
-
-    # Install as a background service that starts on login
-    gpr daemon install
-    # Then start it immediately:
-    gpr daemon start --background
-    ```
-  </Step>
-  <Step title="Verify the machine is online">
-    Check the **Machines** page in the GPR web app, or list your machines from the CLI:
-
-    ```bash
-    gpr machine list
-    # NAME              ID              STATUS    SESSIONS
-    # macbook-pro       mch_a1b2c3d4    online    0 / 3
-    ```
-  </Step>
-</Steps>
-
-## Machine Status
-
-Each registered machine has one of the following statuses:
-
-| Status | Meaning |
+| Path | Contents |
 |---|---|
-| `online` | The daemon is running and connected. GPR can dispatch tasks immediately. |
-| `busy` | The machine is online but all agent session slots are in use. New tasks queue until a slot opens. |
-| `offline` | The daemon is not reachable. Tasks assigned to this machine will queue until it comes back online. |
-| `paused` | You've manually paused the machine. No new sessions will start, but active sessions continue. |
-| `unregistered` | The machine was removed from your account. |
+| `~/.gpr/state.json` | Daemon identity and pairing |
+| `~/.gpr/daemon.log` | Rotated daemon log |
+| `~/.gpr/events.jsonl` | Local event audit trail |
 
-<Tip>
-  Set a **preferred machine** on each workspace so GPR always routes tasks to the right computer—for example, the machine where that repository is already cloned and configured.
-</Tip>
-
-## How GPR Routes Tasks to Machines
-
-When a task is dispatched, GPR selects a machine using this priority order:
-
-1. **Pinned machine** — If the task or workspace specifies a particular machine by ID, GPR waits for that machine and only that machine.
-2. **Preferred machine** — If the workspace has a preferred machine configured and it is `online`, GPR routes to it.
-3. **Any available machine** — If no preferred machine is configured or the preferred machine is `offline`, GPR routes to any `online` machine in your account that is not `busy`.
-4. **Queue** — If no machine is available, the task enters `pending` state and waits. GPR dispatches it as soon as a machine becomes available.
-
-<Note>
-  Tasks with higher priority (inherited from Jira/Linear or set manually) jump ahead in the queue for a given machine, but they don't preempt an already `running` session.
-</Note>
-
-## Managing Multiple Machines
-
-Multiple machines let you run parallel agent sessions across different projects or isolate certain workspaces to specific hardware.
-
-```bash
-# List all registered machines and their current status
-gpr machine list
-# NAME              ID              STATUS    SESSIONS
-# macbook-pro       mch_a1b2c3d4    online    1 / 3
-# dev-server        mch_e5f6g7h8    online    0 / 5
-# old-laptop        mch_i9j0k1l2    offline   —
-
-# Pause a machine (no new sessions will start)
-gpr machine pause dev-server
-
-# Resume a paused machine
-gpr machine resume dev-server
-
-# Rename a machine
-gpr machine rename old-laptop home-desktop
-
-# Unregister a machine (removes it from your account; stops the daemon)
-gpr machine unregister old-laptop
-```
-
-## Configuring Session Concurrency
-
-Each machine has a maximum number of concurrent agent sessions it will accept. The default is 3. You can raise or lower this depending on your hardware.
-
-```bash
-# Allow up to 5 concurrent sessions on dev-server
-gpr machine update dev-server --max-sessions 5
-
-# Restrict to 1 session at a time (useful on a laptop to avoid slowdown)
-gpr machine update macbook-pro --max-sessions 1
-```
-
-<Warning>
-  Running many concurrent agent sessions is CPU and memory intensive. Monitor your machine's resources and adjust `--max-sessions` if system performance degrades.
-</Warning>
-
-## Keeping the Daemon Up to Date
-
-The GPR daemon is versioned independently of the CLI. GPR notifies you in the app when a daemon update is available.
-
-```bash
-# Update the daemon to the latest version
-gpr daemon update
-
-# Check the current daemon version
-gpr daemon version
-```
-
-<CardGroup cols={2}>
-  <Card title="Agent Sessions" icon="terminal" href="/how-gpr-works/agent-sessions">
-    See how GPR manages the lifecycle of an agent session once it starts on your machine.
-  </Card>
-  <Card title="Workspaces" icon="folder-open" href="/how-gpr-works/workspaces">
-    Assign a preferred machine to a workspace so routing is always predictable.
-  </Card>
-</CardGroup>
+Override the home directory with `GPR_HOME`.
