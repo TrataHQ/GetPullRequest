@@ -1,16 +1,18 @@
 ---
-title: "Agent Sessions: Lifecycle of an AI Coding Run"
+title: "Agent Sessions: Monitor and Control AI Coding Runs"
 sidebarTitle: "Agent Sessions"
-description: "An Agent Session is one AI coding agent run on your local machine. Learn how sessions start, how to monitor their output, and how to intervene when needed."
+description: "An Agent Session is one AI coding agent run on your local machine. Learn how sessions start, how to monitor output, and how to intervene when needed."
 ---
 
 An Agent Session is GPR's record of one AI coding agent working through a task on your local machine. When GPR dispatches a task, it creates a session, launches the configured agent inside the workspace repository, and streams its output back to you in real time. You can watch every command the agent runs, every file it edits, and every commit it makes—from your phone, your browser, or your terminal.
 
-Sessions are isolated to a single task. When the agent finishes (or when you stop it), the session closes and GPR moves on to verification.
+Sessions are isolated to a single task. When the agent finishes (or when you stop it), the session closes and GPR moves the task forward to verification.
 
 ## Session Lifecycle
 
-```
+Sessions move through the following states from start to finish. These states describe the agent's work in detail; the parent task transitions through its own states (`pending` → `assigned` → `running` → `verifying` → `pr_open` → `merged`) in parallel.
+
+```text
 created
    │
    ▼
@@ -21,7 +23,7 @@ working ◀──────────────── resumed
    │                          ▲
    ├──── (manual pause) ──▶ paused
    │                          │
-   ├──── (agent requests                     
+   ├──── (agent requests
    │      human input) ───▶ awaiting_input ──┘
    │
    ├──── (unrecoverable error) ──▶ failed
@@ -71,7 +73,7 @@ gpr sessions follow --session ses_9x8y7z6w
 
 The output shows everything the agent prints: tool calls, file reads and writes, test output, and git operations.
 
-```
+```text
 [gpr] Session ses_9x8y7z6w started on macbook-pro
 [gpr] Agent: claude-code  Task: TASK-42 (Add rate limiting to /api/export)
 ─────────────────────────────────────────────────────────
@@ -177,10 +179,11 @@ When a session reaches `failed` state, GPR preserves everything: the session log
     ```bash
     gpr sessions log TASK-42 --section verification
     ```
+
     Identify whether the failure is a bug in the agent's output, a flaky test, or a misconfigured verification command.
   </Step>
   <Step title="Decide how to proceed">
-    - **Re-dispatch as-is** — if it looks like a transient failure (network issue, flaky test), re-dispatch without changes: `gpr tasks dispatch TASK-42`
+    - **Re-dispatch as-is** — if it looks like a transient failure (network issue, flaky test), re-dispatch without changes from the app or CLI.
     - **Edit the task description** — if the agent misunderstood the requirements, update the description and re-dispatch.
     - **Fix manually** — check out the feature branch, apply the fix yourself, then mark the task as done manually.
   </Step>

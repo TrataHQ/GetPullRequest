@@ -1,5 +1,5 @@
 ---
-title: "Machines: Where Your Agent Sessions Run"
+title: "Machines: Register Your Local Dev Computer with GPR"
 sidebarTitle: "Machines"
 description: "A Machine is a registered local development computer that runs agent sessions. Learn how GPR routes tasks to machines and how to manage multiple machines."
 ---
@@ -24,8 +24,8 @@ Running agent sessions on your own machine has concrete advantages:
 ## Registering a Machine
 
 <Steps>
-  <Step title="Install the GPR daemon">
-    Download and install the GPR daemon on the machine you want to register. The daemon is a small background process that connects your machine to GPR.
+  <Step title="Install the GPR CLI">
+    Download and install the GPR CLI on the machine you want to register.
 
     ```bash
     # macOS / Linux
@@ -35,25 +35,19 @@ Running agent sessions on your own machine has concrete advantages:
     gpr --version
     ```
   </Step>
-  <Step title="Authenticate the daemon">
-    Log in with your GPR credentials to bind the daemon to your account.
+  <Step title="Connect the machine to GPR">
+    Run `gpr connect machine` and follow the prompts. This authenticates the machine with your GPR account and registers it so GPR can dispatch tasks to it.
 
     ```bash
-    gpr auth login
+    gpr connect machine
     # Opens a browser window for authentication.
-    # On a headless server, use:
-    gpr auth login --no-browser
-    # and follow the printed URL on another device.
+    # On a headless server, follow the printed URL on another device.
+    # ? Machine name: macbook-pro
+    # ✓ Machine registered. ID: mch_a1b2c3d4
+    # ✓ Status: online
     ```
-  </Step>
-  <Step title="Register the machine">
-    Give the machine a name that helps you identify it (for example, `macbook-pro` or `dev-server`). The name appears in the GPR app when you select which machine to run tasks on.
 
-    ```bash
-    gpr machine register --name "macbook-pro"
-    # Machine registered. ID: mch_a1b2c3d4
-    # Status: online
-    ```
+    Give the machine a name that helps you identify it (for example, `macbook-pro` or `dev-server`). The name appears in the GPR app when you select which machine to run tasks on.
   </Step>
   <Step title="Start the daemon">
     Start the daemon process. On most setups you'll want it to run automatically at login.
@@ -69,11 +63,12 @@ Running agent sessions on your own machine has concrete advantages:
     ```
   </Step>
   <Step title="Verify the machine is online">
-    Check the **Machines** page in the GPR web app or run:
+    Check the **Machines** page in the GPR web app, or list your machines from the CLI:
 
     ```bash
-    gpr machine status
-    # macbook-pro (mch_a1b2c3d4)  ● online   last seen: just now
+    gpr machine list
+    # NAME              ID              STATUS    SESSIONS
+    # macbook-pro       mch_a1b2c3d4    online    0 / 3
     ```
   </Step>
 </Steps>
@@ -101,10 +96,10 @@ When a task is dispatched, GPR selects a machine using this priority order:
 1. **Pinned machine** — If the task or workspace specifies a particular machine by ID, GPR waits for that machine and only that machine.
 2. **Preferred machine** — If the workspace has a preferred machine configured and it is `online`, GPR routes to it.
 3. **Any available machine** — If no preferred machine is configured or the preferred machine is `offline`, GPR routes to any `online` machine in your account that is not `busy`.
-4. **Queue** — If no machine is available, the task enters `queued` state and waits. GPR dispatches it as soon as a machine becomes available.
+4. **Queue** — If no machine is available, the task enters `pending` state and waits. GPR dispatches it as soon as a machine becomes available.
 
 <Note>
-  Tasks with higher priority (inherited from Jira/Linear or set manually) jump ahead in the queue for a given machine, but they don't preempt an already `in_progress` session.
+  Tasks with higher priority (inherited from Jira/Linear or set manually) jump ahead in the queue for a given machine, but they don't preempt an already `running` session.
 </Note>
 
 ## Managing Multiple Machines

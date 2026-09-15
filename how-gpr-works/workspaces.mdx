@@ -1,5 +1,5 @@
 ---
-title: "Workspaces: Project Contexts for Your Tasks"
+title: "Workspaces: Connect a Repo and Configure GPR Tasks"
 sidebarTitle: "Workspaces"
 description: "A Workspace binds a repository to its agent config, branch strategy, and verification commands so every task in that project runs consistently."
 ---
@@ -25,20 +25,48 @@ Think of a workspace as the standing answer to the question "how do we work in t
   A single repository can have multiple workspaces—for example, one workspace targeting `main` with strict verification for production changes, and a second targeting `dev` with a lighter verification suite for experimental work.
 </Note>
 
-## Creating a Workspace
+## Initialising a Workspace
+
+Run `gpr workspace init` inside the repository directory on your local machine. GPR walks you through selecting the repository, default branch, agent, and verification commands, then writes a `gpr.json` config file to the project root.
+
+```bash
+cd ~/code/api-service
+gpr workspace init
+```
+
+GPR prompts you for each setting and confirms when the workspace is saved:
+
+```text
+? Workspace name: api-service
+? Repository (owner/repo): acme-corp/api-service
+? Default base branch: main
+? Default agent: claude-code
+? Preferred machine: macbook-pro
+? Verification commands (one per line, blank to finish):
+  > npm run lint
+  > npm run typecheck
+  > npm test -- --runInBand
+  > npm run build
+  >
+✓ Workspace "api-service" created (ws_r3s4t5u6)
+```
 
 <Steps>
   <Step title="Connect your repository host">
-    Before creating a workspace, make sure your GitHub or GitLab account is connected in **Settings → Integrations**. GPR needs permission to list repositories and open pull requests.
+    Before initialising a workspace, make sure your GitHub or GitLab account is connected. GPR needs permission to list repositories and open pull requests.
+
+    ```bash
+    gpr connect github
+    ```
   </Step>
-  <Step title="Open the Workspaces page">
-    Navigate to **Workspaces** in the GPR sidebar and click **New Workspace**.
-  </Step>
-  <Step title="Select a repository">
-    Search for and select the repository you want to work in. GPR fetches the available branches and populates the default base branch field.
-  </Step>
-  <Step title="Configure the agent and machine">
-    Choose the default AI coding agent for this workspace and, optionally, a preferred machine. If you only have one machine registered, it is selected automatically.
+  <Step title="Run workspace init">
+    Navigate to the project directory on your local machine and run:
+
+    ```bash
+    gpr workspace init
+    ```
+
+    Follow the prompts to select the repository, base branch, agent, and preferred machine.
   </Step>
   <Step title="Add verification commands">
     Enter the commands GPR should run after the agent finishes. Add one command per line. Commands run in order; the first non-zero exit code fails verification.
@@ -51,32 +79,17 @@ Think of a workspace as the standing answer to the question "how do we work in t
     npm run build
     ```
   </Step>
-  <Step title="Save the workspace">
-    Click **Create Workspace**. GPR validates that the selected machine can reach the repository and saves the configuration. Your workspace is now ready to receive tasks.
+  <Step title="Confirm the workspace is ready">
+    GPR validates that the selected machine can reach the repository and saves the configuration. Your workspace is now ready to receive tasks dispatched with `gpr task create`.
   </Step>
 </Steps>
-
-## Editing a Workspace
-
-You can update any workspace setting at any time from the workspace's **Settings** tab. Changes take effect for new tasks; tasks already `in_progress` or `verifying` continue with the configuration they started with.
-
-```bash
-# View workspace configuration via the CLI
-gpr workspaces get api-service
-
-# Update the default base branch
-gpr workspaces update api-service --base-branch develop
-
-# Add or replace verification commands from a file
-gpr workspaces update api-service --verify-commands ./gpr-verify.sh
-```
 
 ## Verification Commands
 
 Verification commands are the gate between the agent's work and your remote repository. GPR runs them inside the same working directory the agent used, so they have access to any local secrets or tools your machine has configured.
 
 ```bash
-# A more complex verification script (saved as gpr-verify.sh in the repo root)
+# A more complete verification script (saved as gpr-verify.sh in the repo root)
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -132,18 +145,11 @@ You can supply a Markdown template that GPR populates when generating pull reque
 
 ## Managing Multiple Workspaces
 
-If you work across many repositories, the **Workspaces** page gives you a consolidated view of all workspaces, their last activity, and the queue depth (how many tasks are waiting). You can archive workspaces you no longer use without deleting their task history.
+If you work across many repositories, the **Workspaces** page in the GPR app gives you a consolidated view of all workspaces, their last activity, and the queue depth (how many tasks are waiting). Each workspace displays the name, repository, preferred machine, and current task state counts.
 
-```bash
-# List all workspaces and their queue depths
-gpr workspaces list
-
-# Archive a workspace (tasks are preserved, no new tasks can be dispatched)
-gpr workspaces archive legacy-monolith
-
-# Restore an archived workspace
-gpr workspaces restore legacy-monolith
-```
+<Note>
+  You can archive workspaces you no longer use without deleting their task history. Archived workspaces stop accepting new tasks but retain all historical data.
+</Note>
 
 <CardGroup cols={2}>
   <Card title="Machines" icon="computer" href="/how-gpr-works/machines">

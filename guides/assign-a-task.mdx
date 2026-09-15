@@ -1,7 +1,7 @@
 ---
-title: "Assign a Task to an Agent on Your Machine"
+title: "Assign a Jira or GitHub Issue to an AI Coding Agent"
 sidebarTitle: "Assign a Task"
-description: "Route any Jira issue or GitHub issue to an AI coding agent running on a specific local machine, choosing your agent and confirming the assignment in seconds."
+description: "Route any Jira or GitHub issue to an AI coding agent running on a specific local machine, choosing your agent and confirming the assignment in seconds."
 ---
 
 When you're ready to hand off a coding task to an AI agent, GPR lets you specify exactly which agent handles the work and exactly which machine it runs on. This keeps your execution environment consistent, your credentials local, and your codebase changes verifiable before any pull request is opened.
@@ -28,17 +28,17 @@ Before assigning, confirm which local machines are registered and online. A mach
 gpr machine list
 ```
 
-```
-NAME            STATUS    AGENT SUPPORT                   LAST SEEN
-macbook-pro     online    claude-code, codex, cursor      just now
-linux-workstation  online  claude-code, acp-generic       2 min ago
-old-mbp         offline   claude-code                     3 days ago
+```text
+NAME                  STATUS    AGENT SUPPORT                    LAST SEEN
+macbook-pro           online    claude-code, codex, cursor       just now
+linux-workstation     online    claude-code, acp-generic         2 min ago
+old-mbp               offline   claude-code                      3 days ago
 ```
 
 Choose a machine whose status is `online`. Assigning to an offline machine queues the task—it will start when the machine reconnects.
 
 <Tip>
-Run `gpr machine ping <machine-name>` to verify a machine is reachable and has the required agent installed before assigning a task.
+Run `gpr machine list` before assigning to confirm the target machine is online and shows the agent you want to use in its **Agent Support** column.
 </Tip>
 
 ### Choose your agent
@@ -110,7 +110,7 @@ After assigning, verify the task registered correctly:
 gpr task status TASK-123
 ```
 
-```
+```text
 Task:     TASK-123 — Add retry logic to payment processor
 Status:   running
 Agent:    claude-code
@@ -125,15 +125,14 @@ A status of `running` means the agent is actively working. A status of `queued` 
 
 ## Re-assigning a task
 
-If you need to move a task to a different machine or agent after assignment, cancel the current session first:
+If you need to move a task to a different machine or agent after assignment, cancel the current session and re-assign:
 
 ```bash
-gpr task cancel TASK-123
 gpr task assign TASK-123 --agent codex --machine linux-workstation
 ```
 
 <Warning>
-Cancelling a running session stops the agent mid-work. Any uncommitted changes the agent made are discarded. Review the session log with `gpr session logs sess_a1b2c3` before cancelling if you want to preserve partial progress.
+Re-assigning a running task stops the agent mid-work. Any uncommitted changes the agent made are discarded. Review the session log with `gpr session logs sess_a1b2c3` before re-assigning if you want to preserve partial progress notes.
 </Warning>
 
 ## Next steps

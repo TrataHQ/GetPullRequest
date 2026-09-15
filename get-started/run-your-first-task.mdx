@@ -17,19 +17,37 @@ With your machine connected, GitHub authorized, and a coding agent configured, y
       --repo myorg/myapp
     ```
 
-    GPR assigns the task to your default agent and prints a task ID:
+    GPR creates the task and prints a task ID:
 
     ```
     ✓ Task created: tsk_01hxb3n7p2qm4v6r
       Description: Fix the login button not responding on mobile Safari
       Repo:        myorg/myapp
-      Agent:       claude-code (work-laptop)
-      Status:      queued
+      Status:      pending
     ```
 
     <Tip>
       Wrap multi-word descriptions in quotes. You can be as specific as you like — more context gives the agent more to work with. Try including file names, error messages, or acceptance criteria directly in the description.
     </Tip>
+  </Step>
+
+  <Step title="Assign the task to an agent">
+    Assign the task to a registered agent on your machine:
+
+    ```bash
+    gpr task assign tsk_01hxb3n7p2qm4v6r --agent claude-code
+    ```
+
+    GPR confirms the assignment:
+
+    ```
+    ✓ Task tsk_01hxb3n7p2qm4v6r assigned to claude-code (work-laptop)
+      Status: assigned
+    ```
+
+    <Note>
+      If you have a default agent configured for the repository (via `gpr repo config myorg/myapp --agent claude-code`), GPR assigns the task automatically and you can skip this step.
+    </Note>
   </Step>
 
   <Step title="Watch the task run">
@@ -56,7 +74,7 @@ With your machine connected, GitHub authorized, and a coding agent configured, y
   </Step>
 
   <Step title="Review the pull request">
-    Open the PR link that GPR printed, or list recent PRs from the CLI:
+    Open the PR link that GPR printed, or check the task status from the CLI:
 
     ```bash
     gpr task show tsk_01hxb3n7p2qm4v6r
@@ -64,7 +82,7 @@ With your machine connected, GitHub authorized, and a coding agent configured, y
 
     ```
     Task:       tsk_01hxb3n7p2qm4v6r
-    Status:     ✓ completed
+    Status:     pr_open
     PR:         https://github.com/myorg/myapp/pull/214
     Branch:     gpr/fix-login-button-mobile-safari
     Tests:      ✓ 6 passed, 0 failed
@@ -80,7 +98,7 @@ With your machine connected, GitHub authorized, and a coding agent configured, y
   </Step>
 
   <Step title="Merge or request changes">
-    Review the diff in GitHub as you would any pull request. If everything looks good, approve and merge. If you want changes, add a review comment on the PR and then re-run the task to incorporate your feedback:
+    Review the diff in GitHub as you would any pull request. If everything looks good, approve and merge — the task status advances to `merged` automatically. If you want changes, add a review comment on the PR and then re-run the task to incorporate your feedback:
 
     ```bash
     gpr task retry tsk_01hxb3n7p2qm4v6r \
@@ -130,6 +148,9 @@ gpr task list --repo myorg/myapp
 # Filter by status
 gpr task list --status failed
 
+# Assign a pending task to an agent
+gpr task assign tsk_01hxb3n7p2qm4v6r --agent codex
+
 # Cancel a running task
 gpr task cancel tsk_01hxb3n7p2qm4v6r
 
@@ -141,12 +162,13 @@ gpr task retry tsk_01hxb3n7p2qm4v6r
 
 | Status | Meaning |
 |---|---|
-| `queued` | Task is waiting for an online machine to pick it up |
+| `pending` | Task has been created and is waiting to be assigned to an agent |
+| `assigned` | Task has been assigned to an agent and is queued on the target machine |
 | `running` | Agent is actively working on the task |
 | `verifying` | GPR is running tests and checking the diff before opening the PR |
-| `completed` | PR has been opened successfully |
+| `pr_open` | PR has been opened successfully and is awaiting review |
+| `merged` | The pull request was merged and the task is complete |
 | `failed` | Agent encountered an error or tests didn't pass — check `gpr task logs` |
-| `cancelled` | Task was cancelled before completion |
 
 <Warning>
   If a task reaches `failed` status, run `gpr task logs <task-id>` first — the agent usually explains what it tried and why it stopped. Many failures are recoverable with a more specific task description or a `gpr task retry`.
@@ -178,8 +200,8 @@ You've completed the full GPR setup. Your machine is connected, GitHub is author
   <Card title="Connect Jira" icon="jira" href="/integrations/jira">
     Route Jira tickets directly to your coding agent and close issues automatically when PRs merge.
   </Card>
-  <Card title="Connect Slack" icon="slack" href="/guides/work-from-your-phone">
-    Create tasks and get PR notifications without leaving Slack.
+  <Card title="Work from Your Phone" icon="mobile" href="/guides/work-from-your-phone">
+    Create tasks and get PR notifications without leaving your phone.
   </Card>
   <Card title="Task Configuration" icon="sliders" href="/reference/configuration">
     Set per-repo defaults, custom test commands, PR templates, and more.

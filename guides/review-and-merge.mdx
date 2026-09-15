@@ -1,7 +1,7 @@
 ---
-title: "Review and Merge a Pull Request Opened by GPR"
+title: "Review and Merge the Pull Request GPR Opens for You"
 sidebarTitle: "Review & Merge"
-description: "Inspect the agent's diff, leave inline comments, approve the PR, and merge—all from the GitHub UI, the GPR CLI, or the GPR mobile app without switching contexts."
+description: "Inspect the agent's diff, leave inline comments, approve, and merge—from the GitHub UI, the GPR CLI, or the GPR mobile app without switching contexts."
 ---
 
 When an agent session completes successfully, GPR opens a pull request on your behalf against the base branch you configured. The PR includes the agent's code changes, a generated description summarising what was done and why, and a link back to the original Jira or GitHub issue. Your job from here is to review the diff, confirm the changes match your intent, and merge when you're satisfied.
@@ -25,19 +25,19 @@ The verification badge represents checks run on your local machine by GPR, not G
 
 ### Open the pull request
 
-Navigate to the **Pull requests** tab in your GitHub repository and open the PR. Alternatively, use the direct link from the Slack notification or CLI output:
+Navigate to the **Pull requests** tab in your GitHub repository and open the PR. Alternatively, use the direct link from the Slack notification or from the CLI:
 
 ```bash
-gpr task pr TASK-123
+gpr task list --status pr_open
 ```
 
-This prints the PR URL and opens it in your default browser.
+This shows all tasks with open PRs, including their PR URLs, so you can navigate directly to the right one.
 
 ### Read the PR description
 
 The description follows a consistent structure:
 
-```
+```text
 ## What changed
 - Added `RetryHandler` class in `src/payments/retry.ts`
 - Updated `PaymentProcessor.process()` to call `RetryHandler` on 5xx errors
@@ -69,7 +69,7 @@ Leave inline comments on any line by clicking the `+` icon that appears when you
 When you're satisfied, click **Review changes** → **Approve**. If you need the agent to revise the work, click **Request changes** and describe what needs to change in your review comment.
 
 <Tip>
-To have GPR automatically re-run the agent with your review comments as additional context, use the CLI after submitting your review: `gpr task revise TASK-123`. GPR reads your GitHub review comments and feeds them back to the agent as a new session.
+To have GPR automatically re-run the agent with your review comments as additional context, use the CLI after submitting your review: `gpr task assign TASK-123 --agent claude-code --context "See GitHub review comments on PR #214."` GPR starts a new session with your context note fed to the agent.
 </Tip>
 
 ### Merge
@@ -81,77 +81,54 @@ Once the PR is approved and all status checks pass, click **Merge pull request**
 ## Review from the CLI
 
 <Tabs>
-  <Tab title="View diff">
-    Print a summary of changed files and line counts directly in your terminal:
+  <Tab title="Check PR status">
+    List tasks that have open PRs to find what needs your attention:
 
     ```bash
-    gpr task diff TASK-123
+    gpr task list --status pr_open
+    ```
+
+    ```
+    KEY        TITLE                               STATUS    PR
+    TASK-123   Add retry logic to payment proc.    pr_open   #214
+    TASK-119   Update API rate limit headers       pr_open   #211
+    ```
+
+    Run the review command to open the PR in your browser and display a summary:
+
+    ```bash
+    gpr pr review TASK-123
     ```
 
     ```
     PR #214 — Add retry logic to payment processor
+    Branch:  feature/task-123-retry-logic → main
+    Files:   3 changed  (+163 −3)
+    Checks:  ✔ npm test · ✔ eslint
 
-    src/payments/retry.ts          +87  -0
-    src/payments/processor.ts      +12  -3
-    src/payments/retry.test.ts     +64  -0
-    ────────────────────────────────────
-    3 files changed, 163 insertions(+), 3 deletions(-)
-    ```
-
-    To open the full diff in your configured `$PAGER`:
-
-    ```bash
-    gpr task diff TASK-123 --full
+    Opening https://github.com/your-org/your-repo/pull/214 ...
     ```
   </Tab>
   <Tab title="Approve & merge">
-    Approve the PR without leaving the terminal:
-
-    ```bash
-    gpr pr approve TASK-123
-    ```
-
-    Merge immediately after approving (squash merge by default):
-
-    ```bash
-    gpr pr merge TASK-123
-    ```
-
-    To use a different merge strategy:
+    After reviewing on GitHub, you can complete the merge from the CLI once the PR is approved:
 
     <CodeGroup>
-    ```bash Squash merge (default)
-    gpr pr merge TASK-123 --strategy squash
+    ```bash Squash merge (recommended)
+    gpr pr review TASK-123 --action merge --strategy squash
     ```
 
     ```bash Merge commit
-    gpr pr merge TASK-123 --strategy merge
+    gpr pr review TASK-123 --action merge --strategy merge
     ```
 
     ```bash Rebase
-    gpr pr merge TASK-123 --strategy rebase
+    gpr pr review TASK-123 --action merge --strategy rebase
     ```
     </CodeGroup>
 
     <Warning>
-    `gpr pr merge` bypasses the GitHub UI merge button but still respects branch protection rules. If your repository requires a minimum number of approvals, you must gather those approvals before the command succeeds.
+    Merging via GPR still respects branch protection rules. If your repository requires a minimum number of approvals, you must gather those approvals before the merge succeeds.
     </Warning>
-  </Tab>
-  <Tab title="Leave a comment">
-    Post a review comment on a specific line from the CLI:
-
-    ```bash
-    gpr pr comment TASK-123 \
-      --file src/payments/retry.ts \
-      --line 42 \
-      --body "Consider extracting the backoff calculation into its own function."
-    ```
-
-    Post a general PR comment (not line-specific):
-
-    ```bash
-    gpr pr comment TASK-123 --body "Looks good overall. Please add a JSDoc comment to RetryHandler."
-    ```
   </Tab>
 </Tabs>
 
@@ -191,7 +168,7 @@ GPR automatically:
 - Closes the linked Jira or GitHub issue
 - Posts a merge confirmation to the Slack channel configured for notifications
 
-To disable any of these behaviours, see `gpr config --help`.
+To adjust any of these behaviours, run `gpr config --help` to see available settings.
 
 ## Next steps
 

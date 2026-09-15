@@ -1,7 +1,7 @@
 ---
-title: "Connect Any ACP-Compatible Coding Agent to GPR"
+title: "ACP-Compatible Agents: Connect Any Coding Agent to GPR"
 sidebarTitle: "ACP Agents"
-description: "Understand the Agent Communication Protocol, implement the required start/stop/status interface, configure your custom agent in GPR, and verify compatibility before going live."
+description: "Implement the ACP start/stop/status interface, configure your custom agent in GPR, and verify compatibility with the built-in test harness."
 ---
 
 GPR is not limited to first-party integrations like Claude Code, Codex, or Cursor. Any coding agent that implements the **Agent Communication Protocol (ACP)** can plug into GPR's orchestration layer and participate in the full workflow: receiving task prompts from tickets, performing code changes locally, reporting status back to GPR, and triggering pull request creation when done. ACP is a lightweight, process-oriented interface — if your agent can respond to three shell commands, it is ACP-compatible.

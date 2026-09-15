@@ -1,7 +1,7 @@
 ---
-title: "GPR CLI Reference: All Commands and Options"
+title: "GPR CLI Reference: All Commands, Flags, and Examples"
 sidebarTitle: "CLI Reference"
-description: "Complete reference for every gpr subcommand, flag, and option—covering machine registration, agent management, task orchestration, and workspace configuration."
+description: "Complete reference for every gpr subcommand, flag, and example—machine setup, agent management, task orchestration, PR review, and workspace config."
 ---
 
 The `gpr` command-line interface is your primary control plane for GPR. You use it to register machines, connect integrations, manage AI coding agents, and orchestrate tasks—all from your terminal or, via the mobile app, from your phone. Every operation that GPR performs can be driven through this CLI.
@@ -50,7 +50,7 @@ The `gpr connect` family of commands authenticates GPR with external services an
 
 ### gpr connect machine
 
-```
+```text
 gpr connect machine [flags]
 ```
 
@@ -94,7 +94,7 @@ gpr connect machine --name gpu-box --tags gpu,linux --workspace-root /data/gpr
 
 ### gpr connect github
 
-```
+```text
 gpr connect github [flags]
 ```
 
@@ -134,7 +134,7 @@ gpr connect github --github-app
 
 ### gpr connect jira
 
-```
+```text
 gpr connect jira [flags]
 ```
 
@@ -174,7 +174,7 @@ gpr connect jira --url https://mycompany.atlassian.net --project PROJ
 
 ### gpr connect linear
 
-```
+```text
 gpr connect linear [flags]
 ```
 
@@ -212,7 +212,7 @@ Manage the AI coding agents that GPR dispatches work to. GPR supports Claude Cod
 
 ### gpr agent add
 
-```
+```text
 gpr agent add <name> [flags]
 ```
 
@@ -264,7 +264,7 @@ gpr agent add cursor --path /Applications/Cursor.app/Contents/MacOS/Cursor
 
 ### gpr agent list
 
-```
+```text
 gpr agent list [flags]
 ```
 
@@ -311,7 +311,7 @@ Create, assign, monitor, and manage the tasks that GPR orchestrates. A task repr
 
 ### gpr task create
 
-```
+```text
 gpr task create <title> [flags]
 ```
 
@@ -391,7 +391,7 @@ gpr task create "Update README" \
 
 ### gpr task assign
 
-```
+```text
 gpr task assign <id> [flags]
 ```
 
@@ -435,7 +435,7 @@ gpr task assign TASK-456 --agent claude-code --force
 
 ### gpr task status
 
-```
+```text
 gpr task status <id> [flags]
 ```
 
@@ -471,7 +471,7 @@ gpr task status TASK-456 --logs
 
 ### gpr task list
 
-```
+```text
 gpr task list [flags]
 ```
 
@@ -527,7 +527,7 @@ gpr task list --output json
 
 ### gpr task retry
 
-```
+```text
 gpr task retry <id> [flags]
 ```
 
@@ -565,6 +565,42 @@ gpr task retry TASK-456 --clean
 
 ---
 
+### gpr task cancel
+
+```text
+gpr task cancel <id> [flags]
+```
+
+Cancels a task at any point before it reaches `merged` state. GPR stops the agent process if it is running, closes the GitHub pull request if one has been opened, and records the cancellation. Cancelled tasks cannot be retried in place—create a new task with `gpr task create` to restart the work.
+
+<ParamField path="id" type="string" required>
+  GPR task ID (e.g. `TASK-456`). Retrieve IDs with `gpr task list`.
+</ParamField>
+
+<ParamField query="--reason" type="string">
+  Optional human-readable explanation for the cancellation. Recorded in the task history and included in any configured notifications.
+</ParamField>
+
+<CodeGroup>
+```bash Cancel a pending or assigned task
+gpr task cancel TASK-456
+```
+
+```bash Cancel a running task with a reason
+gpr task cancel TASK-456 --reason "Scope changed, will re-create with updated requirements"
+```
+
+```bash Confirm cancellation
+gpr task status TASK-456
+```
+</CodeGroup>
+
+<Warning>
+  Cancelling a task in `running` state terminates the agent process immediately. Any uncommitted changes the agent has made are discarded. If a PR was already open, GPR closes it automatically.
+</Warning>
+
+---
+
 ## gpr machine
 
 Manage the machines registered with your GPR account.
@@ -573,7 +609,7 @@ Manage the machines registered with your GPR account.
 
 ### gpr machine list
 
-```
+```text
 gpr machine list [flags]
 ```
 
@@ -614,7 +650,7 @@ mach_g7h8i9     ci-runner          online    codex                 1 min ago
 
 ### gpr machine remove
 
-```
+```text
 gpr machine remove <id> [flags]
 ```
 
@@ -650,7 +686,7 @@ gpr machine remove mach_a1b2c3 --force
 
 ### gpr workspace init
 
-```
+```text
 gpr workspace init [flags]
 ```
 
@@ -692,9 +728,63 @@ gpr workspace init --path /projects/my-service --repo myorg/my-service
 
 ---
 
+## gpr pr
+
+Review and inspect pull requests that GPR has opened on your behalf.
+
+---
+
+### gpr pr review
+
+```text
+gpr pr review <task-id> [flags]
+```
+
+Opens an interactive review summary for the pull request associated with a given task. The command displays the PR diff, linked issue context, verification results, and any review comments already posted. Use this to quickly assess what the agent changed before approving the PR in GitHub.
+
+<ParamField path="task-id" type="string" required>
+  GPR task ID whose PR you want to review (e.g. `TASK-456`). The task must be in `pr_open` state. Retrieve IDs with `gpr task list --state pr_open`.
+</ParamField>
+
+<ParamField query="--diff" type="boolean" default="true">
+  Show the full unified diff of all changed files. Pass `--diff=false` to skip the diff and show only the PR summary and comments.
+</ParamField>
+
+<ParamField query="--open" type="boolean" default="false">
+  Open the pull request URL directly in your default browser instead of rendering the review in the terminal.
+</ParamField>
+
+<ParamField query="--output, -o" type="string" default="text">
+  Output format: `text`, `json`, or `yaml`. Use `json` or `yaml` to pipe PR metadata into other tools.
+</ParamField>
+
+<CodeGroup>
+```bash Review a PR in the terminal
+gpr pr review TASK-456
+```
+
+```bash Open the PR in your browser
+gpr pr review TASK-456 --open
+```
+
+```bash Show summary only (no diff)
+gpr pr review TASK-456 --diff=false
+```
+
+```bash Export PR metadata as JSON
+gpr pr review TASK-456 --output json
+```
+</CodeGroup>
+
+<Tip>
+  Run `gpr task list --state pr_open` first to see all tasks with open PRs, then pass a task ID to `gpr pr review` to inspect each one.
+</Tip>
+
+---
+
 ## gpr config
 
-```
+```text
 gpr config [key] [value] [flags]
 ```
 

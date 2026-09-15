@@ -1,5 +1,5 @@
 ---
-title: "Configure a Coding Agent to Execute GPR Tasks"
+title: "Add a Coding Agent to Execute Tasks on Your Machine"
 sidebarTitle: "Connect Agent"
 description: "Add Claude Code, OpenAI Codex, Cursor, or any ACP-compatible agent to GPR so it can receive tasks, edit code, and run tests on your local machine."
 ---
@@ -47,22 +47,25 @@ GPR is agent-agnostic: it speaks the Agent Communication Protocol (ACP) and can 
   </Step>
 
   <Step title="Run `gpr agent add`">
-    Register the agent with GPR. Use the agent's short name:
+    Register the agent with GPR. Use the agent's short name. Both `gpr agent add <name>` and `gpr connect agent <name>` are equivalent — use whichever feels natural:
 
     <Tabs>
       <Tab title="Claude Code">
         ```bash
         gpr agent add claude-code
+        # or: gpr connect agent claude-code
         ```
       </Tab>
       <Tab title="Codex">
         ```bash
         gpr agent add codex
+        # or: gpr connect agent codex
         ```
       </Tab>
       <Tab title="Cursor">
         ```bash
         gpr agent add cursor
+        # or: gpr connect agent cursor
         ```
       </Tab>
       <Tab title="Custom ACP agent">

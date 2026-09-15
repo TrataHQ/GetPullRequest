@@ -1,5 +1,5 @@
 ---
-title: "Tasks: The Unit of Work in GPR"
+title: "Tasks: States, Fields, and CLI in the GPR Pipeline"
 sidebarTitle: "Tasks"
 description: "Understand how GPR tasks originate from Jira, Linear, or Slack, carry full coding context, move through a lifecycle, and get assigned to an AI agent."
 ---
@@ -16,7 +16,11 @@ GPR can create tasks automatically from your existing tools or you can create th
 
 **Slack integration** — Use the `/gpr` slash command in any Slack channel to create a Task inline. GPR replies in the thread and updates it as work progresses.
 
-**Manual creation** — Create a Task directly in the GPR web app or mobile app, filling in the description and selecting the target workspace.
+**Manual creation** — Create a Task directly via the CLI, the GPR web app, or the mobile app.
+
+```bash
+gpr task create
+```
 
 <Info>
   When a Task originates from Jira or Linear, GPR keeps the issue in sync. Status updates and the final PR link are written back to the issue automatically.
@@ -45,27 +49,23 @@ Tasks move through a defined set of states from creation to completion.
 
 | State | Meaning |
 |---|---|
-| `draft` | Task created but not yet dispatched to an agent. You can still edit all fields. |
-| `queued` | Task dispatched and waiting for an available machine and agent session. |
-| `in_progress` | An agent session is actively working on the task. |
-| `paused` | The session was paused manually or the agent requested human input. |
-| `verifying` | The agent has finished; GPR is running verification checks. |
-| `review_ready` | Verification passed and a PR has been opened. Awaiting code review. |
+| `pending` | Task created and waiting to be assigned to a machine and agent. |
+| `assigned` | GPR has matched the task to an available machine and agent; session is starting. |
+| `running` | An agent session is actively working on the task. |
+| `verifying` | The agent has finished; GPR is running verification checks (tests, lint, build). |
+| `pr_open` | Verification passed and a pull request has been opened. Awaiting code review. |
+| `merged` | The pull request was merged; the task is complete. |
 | `failed` | Verification failed or the agent encountered an unrecoverable error. |
-| `done` | PR merged and the source issue (if any) closed or transitioned. |
 | `cancelled` | Task manually cancelled before or during an agent session. |
 
-```
-draft
+```text
+pending
   │
   ▼
-queued ──────────────────────────────────────────▶ cancelled
+assigned ──────────────────────────────────────────▶ cancelled
   │
   ▼
-in_progress ◀─────── paused
-  │                     ▲
-  │                     │ (manual pause / agent input needed)
-  │─────────────────────┘
+running
   │
   ▼
 verifying
@@ -73,10 +73,10 @@ verifying
   ├──── (fail) ──▶ failed
   │
   ▼
-review_ready
+pr_open
   │
   ▼
-done
+merged
 ```
 
 <Note>
@@ -87,7 +87,11 @@ done
 
 <Steps>
   <Step title="Open the New Task form">
-    In the GPR web app, click **New Task** in the top-right corner, or tap the **+** button in the mobile app.
+    In the GPR web app, click **New Task** in the top-right corner, or tap the **+** button in the mobile app. You can also start from the CLI:
+
+    ```bash
+    gpr task create
+    ```
   </Step>
   <Step title="Select a Workspace">
     Choose the workspace that contains the repository you want the agent to work in. The base branch and available machines are determined by this selection.
@@ -110,31 +114,48 @@ done
     ```
   </Step>
   <Step title="Choose an agent">
-    Select the AI coding agent for this task. If you've configured a default agent in the workspace settings, it's pre-selected.
+    Select the AI coding agent for this task. If you've configured a default agent in the workspace settings, it's pre-selected. You can also connect a new agent first:
+
+    ```bash
+    gpr connect agent claude-code
+    ```
   </Step>
   <Step title="Dispatch the task">
     Click **Dispatch** (or **Save as Draft** if you want to review before running). GPR queues the task and assigns it to an available machine.
   </Step>
 </Steps>
 
-## Editing and Re-dispatching Tasks
+## Listing and Assigning Tasks
 
-You can edit a task's description, workspace, base branch, or agent at any point while it is in `draft` or `failed` state. Tasks in `queued` or `in_progress` state must be cancelled before editing.
+Use the CLI to view your task queue and assign tasks to specific machines or agents.
 
 ```bash
-# List your tasks and their current states via the GPR CLI
-gpr tasks list
+# List all tasks and their current states
+gpr task list
 
-# View the full detail of a specific task
-gpr tasks get TASK-42
-
-# Re-dispatch a failed task after editing
-gpr tasks dispatch TASK-42
+# Assign a pending task to a specific machine or agent
+gpr task assign
 ```
 
-## Interacting with an In-Progress Task
+`gpr task list` outputs each task's ID, title, current state, assigned machine, and agent:
 
-While a task is `in_progress` you can send a message to the running agent session without stopping it. This is useful for clarifying ambiguous requirements mid-run.
+```text
+ID        TITLE                                    STATE       MACHINE        AGENT
+TASK-42   Add rate limiting to /api/export         running     macbook-pro    claude-code
+TASK-41   Fix null pointer in user service         pr_open     macbook-pro    codex
+TASK-40   Update README install instructions       merged      dev-server     claude-code
+TASK-39   Add CSV export to reporting dashboard    failed      macbook-pro    claude-code
+```
+
+## Editing and Re-dispatching Tasks
+
+You can edit a task's description, workspace, base branch, or agent while it is in `pending` or `failed` state. Tasks in `assigned` or `running` state must be cancelled before editing.
+
+A `failed` task is the most common case for re-dispatch. After reviewing the session log to understand why it failed, update the description if needed and dispatch it again from the app or CLI.
+
+## Interacting with a Running Task
+
+While a task is `running` you can send a message to the running agent session without stopping it. This is useful for clarifying ambiguous requirements mid-run. Open the task's Session view in the app and type in the message field, or use the CLI:
 
 ```bash
 # Send a message to the agent working on TASK-42

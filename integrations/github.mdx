@@ -15,12 +15,18 @@ GPR integrates with GitHub to close the loop between ticket work and code review
 ## Connect GitHub to GPR
 
 <Steps>
-  <Step title="Open the Integrations page">
-    In the GPR dashboard, navigate to **Settings → Integrations** and click **Connect** next to the GitHub tile.
+  <Step title="Open the OAuth flow">
+    Run the connect command from your terminal to start the GitHub OAuth flow:
+
+    ```bash
+    gpr connect github
+    ```
+
+    GPR opens your browser to the GitHub authorization screen. If you prefer to authorize through the dashboard, navigate to **Settings → Integrations** and click **Connect** next to the GitHub tile — both paths complete the same OAuth flow.
   </Step>
 
   <Step title="Authorize the GPR OAuth app">
-    GitHub will redirect you to an authorization screen. Review the requested permissions (detailed below) and click **Authorize GetPullRequest**.
+    GitHub displays an authorization screen listing the requested permissions (detailed below). Click **Authorize GetPullRequest** to proceed.
   </Step>
 
   <Step title="Select repository access">
@@ -28,15 +34,13 @@ GPR integrates with GitHub to close the loop between ticket work and code review
   </Step>
 
   <Step title="Confirm the connection">
-    After authorization, GitHub redirects you back to the GPR dashboard. A green **Connected** badge appears next to the GitHub tile. GPR also confirms the connection in your terminal if you ran the OAuth flow via the CLI:
-
-    ```bash
-    gpr auth status
-    ```
+    After authorization, GitHub redirects you back and GPR prints a confirmation:
 
     ```
     ✔ GitHub   connected  (user: your-handle, repos: 3 selected)
     ```
+
+    A green **Connected** badge also appears on the GitHub tile in the GPR dashboard.
   </Step>
 </Steps>
 
@@ -102,7 +106,7 @@ If GPR loses access to GitHub (for example, after you rotate credentials or revo
 From the CLI:
 
 ```bash
-gpr auth connect github
+gpr connect github
 ```
 
 ### Revoke GPR's access
@@ -130,7 +134,7 @@ To remove GPR's access entirely:
   </Accordion>
 
   <Accordion title="Status check does not appear on the pull request">
-    Confirm that the `checks: write` scope was granted during authorization. You can inspect granted scopes under **GitHub → Settings → Applications → Authorized OAuth Apps → GetPullRequest → Permissions**. If the scope is missing, reconnect via `gpr auth connect github`.
+    Confirm that the `checks: write` scope was granted during authorization. You can inspect granted scopes under **GitHub → Settings → Applications → Authorized OAuth Apps → GetPullRequest → Permissions**. If the scope is missing, run `gpr connect github` to reauthorize.
   </Accordion>
 
   <Accordion title="PR is opened against the wrong base branch">

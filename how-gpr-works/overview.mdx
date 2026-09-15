@@ -1,5 +1,5 @@
 ---
-title: "How GPR Works: From Task to Pull Request"
+title: "GPR Pipeline: From Task Assignment to Pull Request"
 sidebarTitle: "Overview"
 description: "Follow a task as GPR routes it through Jira, an AI coding agent, local verification, and GitHub—all without leaving your phone or IDE."
 ---
@@ -10,7 +10,7 @@ GPR connects your project management tools, AI coding agents, and version contro
 
 Every piece of work moves through the same four stages: **Task → Agent Session → Verification → Pull Request**. Understanding this pipeline helps you configure GPR correctly and troubleshoot when something needs your attention.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                        GPR Pipeline                             │
 │                                                                 │
@@ -30,13 +30,19 @@ Every piece of work moves through the same four stages: **Task → Agent Session
 
 ## Stage 1 — Task
 
-A Task is the unit of work. It carries everything the agent needs: a description, the target repository, the base branch, and any linked Jira or Linear issue. Tasks can be created automatically when you move a Jira issue to a configured column, triggered by a Slack message, or created manually in the GPR app.
+A Task is the unit of work. It carries everything the agent needs: a description, the target repository, the base branch, and any linked Jira or Linear issue. Tasks can be created automatically when you move a Jira issue to a configured column, triggered by a Slack message, or created manually with the CLI:
+
+```bash
+gpr task create
+```
+
+Tasks move through a defined lifecycle—`pending`, `assigned`, `running`, `verifying`, `pr_open`, `merged`, or `failed`—so you always know exactly where work stands.
 
 [Learn more about Tasks →](/how-gpr-works/tasks)
 
 ## Stage 2 — Agent Session
 
-Once a task is ready, GPR routes it to a registered **Machine**—a local development computer you've enrolled—and starts an **Agent Session**. The session launches your chosen AI coding agent (Claude Code, Codex, Cursor, or any ACP-compatible agent) in the workspace's repository directory, passing it the task description and context. The agent works autonomously, committing changes as it goes.
+Once a task is ready, GPR routes it to a registered **Machine**—a local development computer you've enrolled with `gpr connect machine`—and starts an **Agent Session**. The session launches your chosen AI coding agent (Claude Code, Codex, Cursor, or any ACP-compatible agent) in the workspace's repository directory, passing it the task description and context. The agent works autonomously, committing changes as it goes.
 
 You can watch the session's output in real time, send messages to guide the agent, pause it, or cancel it at any point from the GPR mobile app or web dashboard.
 
@@ -44,13 +50,13 @@ You can watch the session's output in real time, send messages to guide the agen
 
 ## Stage 3 — Verification
 
-Before GPR touches your remote repository, it runs a verification step inside the same local environment the agent used. Verification can include your test suite, linters, type checks, and build commands—configured per workspace. If any check fails, the session is flagged and you receive a notification so you can decide whether to retry, intervene manually, or discard the changes.
+Before GPR touches your remote repository, it runs a verification step inside the same local environment the agent used. Verification can include your test suite, linters, type checks, and build commands—configured per workspace. If any check fails, the task moves to `failed` state and you receive a notification so you can decide whether to retry, intervene manually, or discard the changes.
 
 This step means broken code never reaches your repository automatically.
 
 ## Stage 4 — Pull Request
 
-When verification passes, GPR opens a pull request on GitHub or GitLab. The PR includes the agent's commits, a generated description that summarises the changes, and a link back to the originating Jira or Linear issue. Reviewers get full context without any manual write-up from you.
+When verification passes, GPR opens a pull request on GitHub or GitLab. The PR includes the agent's commits, a generated description that summarises the changes, and a link back to the originating Jira or Linear issue. Reviewers get full context without any manual write-up from you. Use `gpr pr review` to inspect or approve open PRs from the CLI.
 
 [Learn more about Pull Requests →](/how-gpr-works/pull-requests)
 

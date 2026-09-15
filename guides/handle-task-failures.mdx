@@ -1,7 +1,7 @@
 ---
-title: "Handle a Task Failure and Get Back on Track"
+title: "Handle a Failed Agent Task and Resume Work Quickly"
 sidebarTitle: "Handle Failures"
-description: "Read failure reasons, retry or revise a failed agent session, fix environment issues, and know when to escalate a task to manual work instead of re-running the agent."
+description: "Read failure reasons, retry or revise a failed session, fix environment issues, and know when to handle a task manually instead of re-running the agent."
 ---
 
 Not every agent session ends with a merged pull request. Tests fail, the task description is ambiguous, the environment has a missing dependency, or the agent simply gets stuck. GPR surfaces the failure reason clearly, gives you tools to diagnose what went wrong, and makes it easy to retry with better context. This guide walks you through each failure scenario and what to do about it.
@@ -14,7 +14,7 @@ When a session fails, the task status changes to `failed` and GPR reports a shor
 gpr task status TASK-123
 ```
 
-```
+```text
 Task:     TASK-123 — Add retry logic to payment processor
 Status:   failed
 Reason:   Verification failed — 2 tests did not pass
@@ -45,6 +45,19 @@ gpr session logs sess_a1b2c3 --tail 50
 ```
 </Tip>
 
+## Retry vs. revise
+
+GPR gives you two distinct commands for re-running a failed task. Use the right one for the situation:
+
+| Command | When to use |
+|---|---|
+| `gpr task retry TASK-123` | The underlying problem was environmental (missing dependency, machine went offline, transient error). The task description is fine as-is. |
+| `gpr task revise TASK-123 --note "..."` | The code or description needs to change. Use this to pass additional instructions to the agent for the new session. |
+
+<Warning>
+Both `gpr task retry` and `gpr task revise` start a fresh session from a clean branch state. Neither command carries over uncommitted changes from the failed session.
+</Warning>
+
 ## Common failure types and fixes
 
 ### Verification failure (tests or lint)
@@ -66,22 +79,18 @@ Fix the order of operations in RetryHandler."
 `gpr task revise` creates a new session using the original task description plus your `--note` as additional context for the agent.
 
 <Note>
-You don't need to cancel the failed session before running `gpr task revise`. GPR automatically starts from a clean branch state, ignoring the failed session's uncommitted changes.
+You don't need to wait or clean up before running `gpr task revise`. GPR automatically starts from a clean branch state, ignoring the failed session's uncommitted changes.
 </Note>
 
 ### Task description too vague
 
-The agent completed something, but it's not what you intended—or the session log shows the agent asking itself clarifying questions and picking the wrong answer.
+The agent completed something, but it's not what you intended—or the session log shows the agent making ambiguous choices without enough guidance.
 
 **What to do:**
 
-Update the task description in Jira or GitHub first, then re-assign:
+Update the task description in Jira or GitHub to add specifics, then re-assign with more explicit context:
 
 ```bash
-# Open your issue in the browser to edit the description
-gpr task open TASK-123
-
-# Re-assign with more specific context
 gpr task assign TASK-123 --agent claude-code --machine macbook-pro \
   --context "Implement exponential backoff only. Do not add circuit-breaker logic. \
 Max 3 retries. Use the existing Logger class for all log output."
@@ -97,7 +106,7 @@ The agent couldn't run because of a problem with the machine itself: missing dep
 
 **Symptoms in the log:**
 
-```
+```text
 [gpr] Error during prepare: npm install failed with exit code 1
 [gpr] ERR! code ERESOLVE
 [gpr] ERR! Could not resolve dependency: peer react@">=18" from ...
@@ -107,17 +116,11 @@ The agent couldn't run because of a problem with the machine itself: missing dep
 
 1. SSH into the machine and fix the environment manually.
 2. Confirm the fix works by running the verification command directly.
-3. Retry the task:
+3. Retry the task with the same configuration:
 
 ```bash
 gpr task retry TASK-123
 ```
-
-`gpr task retry` re-runs the same session configuration (same agent, same machine, same description) without any changes. Use this only when the underlying problem was environmental, not a code quality issue.
-
-<Warning>
-`gpr task retry` and `gpr task revise` both start a fresh session. The difference is that `revise` lets you add new instructions, while `retry` uses the original task description unchanged. Use `retry` for environment fixes; use `revise` for code or description changes.
-</Warning>
 
 ### Agent got stuck in a loop
 
@@ -125,13 +128,12 @@ The session log shows the agent repeatedly reading and rewriting the same file w
 
 **What to do:**
 
-Cancel the session and break the task into smaller subtasks:
+Re-assign the task with a narrower scope, or break it into smaller subtasks in Jira or GitHub—for example, one task per module or one task per acceptance criterion—then assign each one separately:
 
 ```bash
-gpr task cancel TASK-123
+gpr task assign TASK-123A --agent claude-code --machine macbook-pro \
+  --context "Implement RetryHandler class only. No integration with PaymentProcessor yet."
 ```
-
-Then create and assign focused subtasks in Jira or GitHub—for example, one task per module or one task per acceptance criterion.
 
 ### Machine went offline mid-session
 
@@ -183,20 +185,14 @@ gpr task assign TASK-123 --agent claude-code --machine linux-workstation
   </Tab>
 </Tabs>
 
-## Escalate to manual work
+## When to handle a task manually
 
-Some tasks aren't right for an AI agent. If a task has failed three or more times, requires real-world context the agent can't access, or involves security-sensitive changes you want full control over, escalate it to manual work.
+Some tasks aren't right for an AI agent. If a task has failed three or more times, requires real-world context the agent can't access (such as coordinating a database migration with your ops team), or involves security-sensitive changes you want full control over, handle it manually.
 
-Mark the task as manual in GPR so the workflow tracking stays accurate:
-
-```bash
-gpr task escalate TASK-123 --reason "Requires database migration coordination with ops team."
-```
-
-This updates the Jira issue status to your configured escalation status (default: `In Progress — Manual`) and posts a note to the Slack channel so your team knows the task is being handled directly.
+To work on the task yourself without breaking GPR's workflow tracking, re-assign to yourself in Jira or GitHub and update the status to indicate it's being handled directly. GPR will stop scheduling agent sessions for any task that no longer has an agent assignment in the connected issue tracker.
 
 <Note>
-`gpr task escalate` does not close the issue or the GPR session. It simply updates the status label and adds a comment. You continue working on the branch GPR created, then open a PR manually when you're done.
+You can continue working on the branch GPR created for the failed session—it stays open until you delete it. Open a PR manually when you're done, and GPR will detect the PR and link it to the original task.
 </Note>
 
 ## Next steps

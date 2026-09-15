@@ -1,7 +1,7 @@
 ---
-title: "GPR Task Lifecycle States: Complete Reference"
+title: "GPR Task States: Lifecycle Reference for All 8 States"
 sidebarTitle: "Task States"
-description: "Every state in the GPR task lifecycle explained—what each state means, how tasks enter and exit it, and which actions you can take while a task is in that state."
+description: "All eight GPR task states explained—entry and exit conditions, available CLI actions, and a flow diagram showing how tasks move from pending to merged."
 ---
 
 Every GPR task moves through a well-defined lifecycle from creation to completion. Understanding this lifecycle helps you monitor work in progress, diagnose stuck tasks, and know when it is safe to intervene. GPR transitions tasks between states automatically as work proceeds; you can also trigger transitions manually using CLI commands or the mobile app.
@@ -31,7 +31,7 @@ The table below gives a quick reference of all eight states. The sections that f
 
 ## State Flow Diagram
 
-```
+```text
                     ┌─────────────┐
                     │   pending   │◄────────────────────────┐
                     └──────┬──────┘                         │

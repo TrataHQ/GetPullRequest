@@ -1,5 +1,5 @@
 ---
-title: "Use GPR End-to-End from Your Mobile Device"
+title: "Run the Complete GPR Development Workflow on Mobile"
 sidebarTitle: "Work from Phone"
 description: "Assign tasks, watch agent sessions live, review diffs, approve, and merge pull requests entirely from your phone using the GPR app and Slack integration."
 ---
@@ -65,7 +65,7 @@ On the **Choose Machine** screen, you'll see your registered machines with their
 Tap an online machine to select it.
 
 <Tip>
-Tap the ℹ️ icon next to a machine name to see its specs, last active time, and which agents are installed on it.
+Tap the ℹ️ icon next to a machine name to see its last active time and which agents are installed on it.
 </Tip>
 
 ### Add context (optional)
@@ -92,6 +92,8 @@ On the task detail screen, scroll to **Session Timeline**. Each stage shows a ti
 - 🔄 Active stage (spinning)
 - ⬜ Upcoming stage
 
+The stages progress from `assigned` → `running` → `verifying` → `pr_open`.
+
 ### Stream the session log
 
 Tap **View Logs** to open the streaming log view. New lines appear at the bottom as the agent works. Tap **Pause** to stop auto-scrolling and read a section; tap **Resume** to continue following the tail.
@@ -104,7 +106,7 @@ Long-press any log line to copy its text. Useful for capturing an error message 
 
 When the session enters the **Verifying** stage, the timeline row expands to show individual check results as they complete:
 
-```
+```text
 ✔ eslint       — no errors
 ✔ npm test     — 20 passed, 0 failed
 ✔ npm run build — completed in 14s
@@ -185,7 +187,6 @@ From the task detail screen you can:
 - Tap **Retry** to re-run the session with the same configuration
 - Tap **Revise** to add new instructions before retrying
 - Tap **Reassign** to choose a different machine or agent
-- Tap **Escalate** to mark the task for manual work
 
 For detailed troubleshooting steps, see [Handle Task Failures](/guides/handle-task-failures).
 
