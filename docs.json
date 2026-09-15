@@ -1,13 +1,16 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "luma",
-  "name": "GetPullRequest (GPR)",
+  "name": "GetPullRequest",
   "colors": {
     "primary": "#1565C0",
     "light": "#90CAF9",
     "dark": "#1565C0"
   },
-  "favicon": "/favicon.svg",
+  "favicon": {
+    "light": "/images/image(29).png",
+    "dark": "/images/image(29).png"
+  },
   "navigation": {
     "tabs": [
       {
@@ -113,5 +116,11 @@
   },
   "icons": {
     "library": "lucide"
+  },
+  "description": "GetPullRequest (GPR) is a developer workflow platform that connects issue trackers, Git hosting platforms, communication tools, and coding agents running on your local machine. GPR works with Jira, GitHub, GitLab, Slack, Claude Code, Codex, Cursor, and other ACP-compatible coding agents to orchestrate software development tasks from assignment through pull request. It runs coding work in your own development environment, verifies changes before creating a pull request, and lets you monitor agent progress, review changes, and merge from your phone.",
+  "logo": {
+    "light": "/images/image(29).png",
+    "dark": "/images/image(29).png",
+    "href": "https://getpullrequest.com"
   }
 }
