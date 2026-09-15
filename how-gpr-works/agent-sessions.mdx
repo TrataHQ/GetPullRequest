@@ -1,0 +1,196 @@
+---
+title: "Agent Sessions: Lifecycle of an AI Coding Run"
+sidebarTitle: "Agent Sessions"
+description: "An Agent Session is one AI coding agent run on your local machine. Learn how sessions start, how to monitor their output, and how to intervene when needed."
+---
+
+An Agent Session is GPR's record of one AI coding agent working through a task on your local machine. When GPR dispatches a task, it creates a session, launches the configured agent inside the workspace repository, and streams its output back to you in real time. You can watch every command the agent runs, every file it edits, and every commit it makes—from your phone, your browser, or your terminal.
+
+Sessions are isolated to a single task. When the agent finishes (or when you stop it), the session closes and GPR moves on to verification.
+
+## Session Lifecycle
+
+```
+created
+   │
+   ▼
+starting ──── (machine offline / agent launch failed) ──▶ failed
+   │
+   ▼
+working ◀──────────────── resumed
+   │                          ▲
+   ├──── (manual pause) ──▶ paused
+   │                          │
+   ├──── (agent requests                     
+   │      human input) ───▶ awaiting_input ──┘
+   │
+   ├──── (unrecoverable error) ──▶ failed
+   │
+   ▼
+completing
+   │
+   ▼
+verifying ──── (verification fail) ──▶ failed
+   │
+   ▼
+complete
+```
+
+| State | Meaning |
+|---|---|
+| `created` | Session record created; waiting for the machine daemon to pick it up. |
+| `starting` | Daemon acknowledged the session; agent process is launching. |
+| `working` | Agent is actively running, reading files, writing code, making commits. |
+| `paused` | Session paused manually. Agent process is suspended; no CPU used. |
+| `awaiting_input` | Agent has asked a clarifying question and is waiting for your reply. |
+| `completing` | Agent signalled it is done; GPR is finalising the commit log. |
+| `verifying` | Verification commands are running. |
+| `complete` | Verification passed; session is closed. GPR will open a PR. |
+| `failed` | Something went wrong. Full logs are retained for review. |
+| `cancelled` | Manually cancelled before completion. |
+
+<Note>
+  The `awaiting_input` state pauses the clock on your machine's session slot, freeing it for other tasks while you respond. Your machine won't sit idle waiting for you.
+</Note>
+
+## Watching a Session in Real Time
+
+You can follow session output from any interface.
+
+**In the GPR web app or mobile app**, open the task and tap **Session**. The output panel streams the agent's terminal output as it runs, with commits highlighted as they appear.
+
+**In the terminal**, use the `gpr sessions follow` command:
+
+```bash
+# Stream session output to your terminal
+gpr sessions follow TASK-42
+
+# Equivalent using the session ID directly
+gpr sessions follow --session ses_9x8y7z6w
+```
+
+The output shows everything the agent prints: tool calls, file reads and writes, test output, and git operations.
+
+```
+[gpr] Session ses_9x8y7z6w started on macbook-pro
+[gpr] Agent: claude-code  Task: TASK-42 (Add rate limiting to /api/export)
+─────────────────────────────────────────────────────────
+Reading src/routes/export.ts...
+Reading src/middleware/rateLimit.ts...
+Understood the existing middleware pattern. I'll extend it for this endpoint.
+
+Writing src/middleware/rateLimitExport.ts...
+Writing src/routes/export.ts...
+Writing tests/middleware/rateLimitExport.test.ts...
+
+Running: npm test -- tests/middleware/rateLimitExport.test.ts
+  ✓ returns 429 when limit exceeded (42ms)
+  ✓ includes Retry-After header (11ms)
+  ✓ allows requests under the limit (8ms)
+
+git commit -m "feat: add rate limiting to /api/export endpoint"
+[feature/TASK-42-rate-limit abc1234] feat: add rate limiting to /api/export endpoint
+ 3 files changed, 87 insertions(+), 4 deletions(-)
+─────────────────────────────────────────────────────────
+[gpr] Agent signalled completion. Starting verification…
+```
+
+## Sending Messages to the Agent
+
+While a session is `working` or `awaiting_input`, you can send a message directly to the agent. The agent reads your message as part of its context and adjusts its approach accordingly.
+
+```bash
+# Send a message to the agent mid-session
+gpr sessions message TASK-42 "Don't modify the existing rate limiter middleware—create a new one specific to this route"
+```
+
+From the mobile app, open the task's Session view and type in the message field at the bottom of the output panel.
+
+<Tip>
+  Use messages to correct course early rather than waiting for the agent to finish and then re-running. Small nudges mid-session are more efficient than a full retry.
+</Tip>
+
+## Pausing and Resuming a Session
+
+Pausing a session suspends the agent process without losing any of its work. This is useful when you want to review what the agent has done so far, make a manual edit, or step away and come back later.
+
+```bash
+# Pause a running session
+gpr sessions pause TASK-42
+
+# Check what the agent has committed so far
+cd ~/code/api-service
+git log feature/TASK-42-rate-limit --oneline
+
+# Make a manual edit if needed, then resume
+gpr sessions resume TASK-42
+```
+
+When you resume, the agent process restarts in the same working directory, with access to any changes you made while it was paused.
+
+<Note>
+  Paused sessions count against your machine's concurrent session slots. If you want to free the slot while you think, cancel the session and re-dispatch the task—your task description and the agent's git commits are preserved.
+</Note>
+
+## Cancelling a Session
+
+Cancelling stops the agent immediately. Any commits the agent made remain on the feature branch; nothing is pushed or opened as a PR.
+
+```bash
+# Cancel a session
+gpr sessions cancel TASK-42
+
+# The feature branch and its commits are still local if you want to review them
+git log feature/TASK-42-rate-limit --oneline
+```
+
+After cancellation, the task moves to `cancelled` state. You can re-dispatch it by editing the task and clicking **Dispatch** again.
+
+## Reviewing Session Logs After Completion
+
+Full session logs—including all agent output, tool calls, file changes, and verification results—are stored by GPR and available after the session ends.
+
+```bash
+# View the full log for a completed or failed session
+gpr sessions log TASK-42
+
+# Save the log to a file for offline review
+gpr sessions log TASK-42 --output task-42-session.log
+
+# View only the verification output
+gpr sessions log TASK-42 --section verification
+```
+
+<Info>
+  Session logs are retained for 90 days. For compliance or audit purposes, you can export them at any time from the GPR web app under **Settings → Data Export**.
+</Info>
+
+## Handling Failed Sessions
+
+When a session reaches `failed` state, GPR preserves everything: the session log, the agent's commits on the feature branch, and the verification output. You receive a notification with a direct link to the failure details.
+
+<Steps>
+  <Step title="Read the failure summary">
+    Open the task in the GPR app. The **Session** tab shows which stage failed (agent error or verification failure) and the last relevant lines of output.
+  </Step>
+  <Step title="Review the full log">
+    ```bash
+    gpr sessions log TASK-42 --section verification
+    ```
+    Identify whether the failure is a bug in the agent's output, a flaky test, or a misconfigured verification command.
+  </Step>
+  <Step title="Decide how to proceed">
+    - **Re-dispatch as-is** — if it looks like a transient failure (network issue, flaky test), re-dispatch without changes: `gpr tasks dispatch TASK-42`
+    - **Edit the task description** — if the agent misunderstood the requirements, update the description and re-dispatch.
+    - **Fix manually** — check out the feature branch, apply the fix yourself, then mark the task as done manually.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Pull Requests" icon="code-pull-request" href="/how-gpr-works/pull-requests">
+    See what happens after a session completes successfully and verification passes.
+  </Card>
+  <Card title="Tasks" icon="list-check" href="/how-gpr-works/tasks">
+    Understand the task states that drive session creation and post-session flow.
+  </Card>
+</CardGroup>

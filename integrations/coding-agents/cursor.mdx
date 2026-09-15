@@ -1,0 +1,203 @@
+---
+title: "Configure Cursor as Your GPR Coding Agent"
+sidebarTitle: "Cursor"
+description: "Install Cursor, register it with GPR, and learn how GPR launches Cursor in headless agent mode to automate coding tasks from ticket to pull request."
+---
+
+Cursor is an AI-powered code editor built on VS Code that includes a built-in agentic mode capable of reading your codebase, planning multi-step changes, and executing them across files. GPR integrates with Cursor by launching it in headless agent mode — meaning Cursor runs as a background process that takes instructions from GPR, does the work, and signals completion without requiring you to interact with the editor UI. This makes Cursor a powerful GPR agent for teams that already use it as their daily driver and want to leverage its codebase indexing and editor intelligence.
+
+## Prerequisites
+
+- Cursor installed (version 0.43 or later, which includes headless agent mode support).
+- A Cursor account and an active subscription (Pro or Business) — headless mode requires a paid plan.
+- GPR CLI installed (`npm install -g gpr`) and authenticated (`gpr auth login`).
+
+## Install Cursor
+
+<Tabs>
+  <Tab title="macOS">
+    Download the latest Cursor `.dmg` from [cursor.com/download](https://cursor.com/download) and drag it to your Applications folder.
+
+    Then install the `cursor` CLI command:
+
+    ```bash
+    # Open Cursor, press Cmd+Shift+P, and run:
+    # "Install 'cursor' command in PATH"
+    ```
+
+    Verify the CLI is available:
+
+    ```bash
+    cursor --version
+    ```
+  </Tab>
+  <Tab title="Windows">
+    Download and run the Cursor installer from [cursor.com/download](https://cursor.com/download).
+
+    The `cursor` CLI is added to your `PATH` automatically during installation. Verify with:
+
+    ```bash
+    cursor --version
+    ```
+  </Tab>
+  <Tab title="Linux">
+    Download the `.AppImage` or `.deb` package from [cursor.com/download](https://cursor.com/download).
+
+    For `.deb`:
+
+    ```bash
+    sudo dpkg -i cursor_*.deb
+    ```
+
+    Then add the CLI to your PATH if it is not added automatically:
+
+    ```bash
+    export PATH="$PATH:/usr/lib/cursor/bin"
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  GPR uses the `cursor` CLI to launch Cursor in headless mode. If `cursor --version` returns "command not found" after installation, complete the "Install cursor command in PATH" step from the Cursor command palette before proceeding.
+</Note>
+
+## Register Cursor with GPR
+
+<Steps>
+  <Step title="Add Cursor as a GPR agent">
+    ```bash
+    gpr agent add cursor
+    ```
+
+    GPR detects the `cursor` binary on your `PATH`, verifies that headless mode is supported (requires Cursor 0.43+), and confirms the agent is ready. Your Cursor account credentials are used automatically — no separate API key is required.
+  </Step>
+
+  <Step title="Verify the agent is registered">
+    ```bash
+    gpr agent list
+    ```
+
+    ```
+    NAME     TYPE     STATUS    MODE
+    cursor   cursor   ready     headless
+    ```
+  </Step>
+
+  <Step title="Assign Cursor to a project (optional)">
+    ```bash
+    gpr project set-agent cursor --project my-project
+    ```
+  </Step>
+</Steps>
+
+## How GPR Launches Cursor in Headless Mode
+
+When GPR starts an agent run with Cursor, it:
+
+1. **Writes a task file** (`.gpr/task.md`) in the repository root containing the ticket title, description, acceptance criteria, and any GPR-specific instructions.
+2. **Invokes Cursor in headless mode**, passing the repository path and task file:
+   ```bash
+   cursor --headless --agent-task .gpr/task.md /path/to/repo
+   ```
+3. **Monitors the agent process**, reading Cursor's structured output to track progress and capture file changes.
+4. **Collects diffs** once Cursor signals completion, stages all changes, and passes control back to GPR for local verification.
+5. **Cleans up** the task file and any Cursor workspace metadata before opening the PR.
+
+<Note>
+  GPR does not open or interact with the Cursor UI during an agent run. If Cursor is already open to the same repository, the headless process runs independently and does not affect your open editor session.
+</Note>
+
+## Configuration Options
+
+Customize Cursor's behavior in `gpr.config.yaml`:
+
+```yaml
+# gpr.config.yaml
+agents:
+  - name: cursor
+    type: cursor
+    timeout_seconds: 900             # abort the run after this long
+    max_turns: 30                    # max agent turns before giving up
+    working_directory: "."           # repo root (default: current directory)
+    headless_flags:                  # additional flags passed to cursor --headless
+      - "--disable-extensions"       # run without third-party extensions
+      - "--no-sandbox"               # required on some Linux CI environments
+    rules_file: .cursor/rules.md     # path to project rules file (see below)
+    env:
+      NODE_ENV: test
+      CI: "true"
+```
+
+### Configuration reference
+
+| Option | Default | Description |
+|---|---|---|
+| `timeout_seconds` | `900` | Maximum wall-clock time for a single agent run. |
+| `max_turns` | `30` | Maximum number of reasoning/edit turns before GPR forces a stop. |
+| `headless_flags` | `[]` | Additional CLI flags forwarded to `cursor --headless`. |
+| `rules_file` | `.cursor/rules.md` | Path to project-level rules that Cursor reads at startup. |
+| `working_directory` | `.` | Root directory Cursor indexes and modifies. |
+
+## Providing Project Context with Cursor Rules
+
+Cursor reads a rules file at startup that you can use to encode your project's conventions, file layout, and constraints. GPR automatically passes the rules file path to the headless process — you just need to create the file.
+
+```markdown
+<!-- .cursor/rules.md -->
+## Repository overview
+This is a TypeScript monorepo managed with pnpm workspaces.
+- `packages/api` — Express REST API
+- `packages/web` — React frontend
+- `packages/shared` — Shared types and utilities
+
+## Coding conventions
+- Use TypeScript strict mode in all packages
+- Write unit tests in `*.test.ts` files colocated with source files
+- Use `zod` for runtime schema validation
+- Do not modify auto-generated files in `packages/*/src/generated/`
+
+## Verification
+Run `pnpm test` and `pnpm lint` before considering a task complete.
+```
+
+<Tip>
+  The more context you provide in your rules file, the more accurately Cursor can scope its changes. Include file layout, key abstractions, and any "do not touch" areas to avoid unwanted edits.
+</Tip>
+
+## Tips for Best Results
+
+**Let Cursor index your codebase before the first run.** Open the repository in Cursor at least once before registering it with GPR. This ensures Cursor's codebase index is populated, which dramatically improves the quality of multi-file edits in headless mode.
+
+**Increase `timeout_seconds` for large repositories.** Cursor spends time indexing and reasoning over the codebase at the start of each headless session. Large repositories (> 100k lines) may need 5–15 minutes per run.
+
+**Use `--disable-extensions` in headless mode.** Third-party Cursor extensions can interfere with headless execution by displaying UI prompts or blocking on input. Add `--disable-extensions` to `headless_flags` unless you have specific extensions you need.
+
+**Set `CI: "true"` in the agent environment.** This suppresses interactive prompts in test runners, linters, and other tools that Cursor may invoke as part of verifying its own changes.
+
+<Warning>
+  On some Linux distributions, headless Cursor requires the `--no-sandbox` flag to run without a display server. Add it to `headless_flags` if you see errors related to `DISPLAY` or sandbox initialization when running GPR on a Linux host.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="'cursor: command not found' after installation">
+    The `cursor` CLI may not have been added to your PATH automatically. On macOS, open Cursor, press `Cmd+Shift+P`, and run **Install 'cursor' command in PATH**. On Linux, locate the Cursor binary and add its directory to your `PATH` in your shell profile.
+  </Accordion>
+
+  <Accordion title="'Headless mode requires a Pro or Business subscription'">
+    Headless agent mode is a paid Cursor feature. Ensure you are logged into Cursor with an account on the Pro or Business plan. Run `cursor --version` and confirm you are on version 0.43 or later.
+  </Accordion>
+
+  <Accordion title="Agent run times out on large repositories">
+    Increase `timeout_seconds` in your agent config. Consider also pointing `working_directory` to the relevant sub-package rather than the monorepo root — this reduces the amount of code Cursor needs to index before it can start working.
+  </Accordion>
+
+  <Accordion title="Cursor modifies generated or vendor files">
+    Add explicit instructions to your `.cursor/rules.md` file listing the directories Cursor must not modify. For example: "Do not modify any files in `node_modules/`, `dist/`, or `src/generated/`." Cursor respects clearly stated constraints.
+  </Accordion>
+
+  <Accordion title="Open Cursor editor is disrupted during a GPR run">
+    GPR runs Cursor in a separate headless process. If you observe interference with your open editor session, ensure both sessions are not targeting the same workspace lock file. As a workaround, run GPR from a terminal outside the Cursor integrated terminal.
+  </Accordion>
+</AccordionGroup>

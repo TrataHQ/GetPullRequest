@@ -1,0 +1,153 @@
+---
+title: "Tasks: The Unit of Work in GPR"
+sidebarTitle: "Tasks"
+description: "Understand how GPR tasks originate from Jira, Linear, or Slack, carry full coding context, move through a lifecycle, and get assigned to an AI agent."
+---
+
+A Task is the fundamental unit of work in GPR. Every time you want an AI coding agent to implement something—fix a bug, add a feature, update a dependency—you create a Task. GPR uses the information inside that Task to set up the agent, target the right repository and branch, and eventually open a pull request on your behalf. Tasks are designed to be as lightweight or as detailed as you need them to be.
+
+## Where Tasks Come From
+
+GPR can create tasks automatically from your existing tools or you can create them directly.
+
+**Jira integration** — Map a Jira column (such as "Ready for Dev") to GPR. When you move an issue into that column, GPR automatically creates a Task from the issue title, description, and any linked GitHub or GitLab repository.
+
+**Linear integration** — Configure a Linear workflow state as a GPR trigger. Issues entering that state become Tasks, carrying their title, description, and cycle context.
+
+**Slack integration** — Use the `/gpr` slash command in any Slack channel to create a Task inline. GPR replies in the thread and updates it as work progresses.
+
+**Manual creation** — Create a Task directly in the GPR web app or mobile app, filling in the description and selecting the target workspace.
+
+<Info>
+  When a Task originates from Jira or Linear, GPR keeps the issue in sync. Status updates and the final PR link are written back to the issue automatically.
+</Info>
+
+## What a Task Contains
+
+| Field | Description |
+|---|---|
+| **Title** | Short summary of the work, imported from the issue or entered manually. |
+| **Description** | Full context for the agent: acceptance criteria, background, references. |
+| **Workspace** | The project context (repository + config) the task runs in. |
+| **Base branch** | The branch the agent checks out from and the PR targets. Defaults to the workspace default. |
+| **Agent** | Which AI coding agent will handle this task: Claude Code, Codex, Cursor, or an ACP-compatible agent. |
+| **Machine** | The local machine the session runs on. GPR auto-selects an available machine or you can pin one. |
+| **Source issue** | Link back to the originating Jira or Linear issue, if applicable. |
+| **Priority** | Inherited from the source issue or set manually. Used when multiple tasks are queued on the same machine. |
+
+<Tip>
+  The more detail you put in the **Description**, the better the agent performs. Include acceptance criteria, links to relevant files, and examples of expected input/output wherever you can.
+</Tip>
+
+## Task Lifecycle
+
+Tasks move through a defined set of states from creation to completion.
+
+| State | Meaning |
+|---|---|
+| `draft` | Task created but not yet dispatched to an agent. You can still edit all fields. |
+| `queued` | Task dispatched and waiting for an available machine and agent session. |
+| `in_progress` | An agent session is actively working on the task. |
+| `paused` | The session was paused manually or the agent requested human input. |
+| `verifying` | The agent has finished; GPR is running verification checks. |
+| `review_ready` | Verification passed and a PR has been opened. Awaiting code review. |
+| `failed` | Verification failed or the agent encountered an unrecoverable error. |
+| `done` | PR merged and the source issue (if any) closed or transitioned. |
+| `cancelled` | Task manually cancelled before or during an agent session. |
+
+```
+draft
+  │
+  ▼
+queued ──────────────────────────────────────────▶ cancelled
+  │
+  ▼
+in_progress ◀─────── paused
+  │                     ▲
+  │                     │ (manual pause / agent input needed)
+  │─────────────────────┘
+  │
+  ▼
+verifying
+  │
+  ├──── (fail) ──▶ failed
+  │
+  ▼
+review_ready
+  │
+  ▼
+done
+```
+
+<Note>
+  A `failed` task preserves all agent output and session logs. You can review what the agent did, edit the task description, and re-dispatch it without starting from scratch.
+</Note>
+
+## Creating a Task Manually
+
+<Steps>
+  <Step title="Open the New Task form">
+    In the GPR web app, click **New Task** in the top-right corner, or tap the **+** button in the mobile app.
+  </Step>
+  <Step title="Select a Workspace">
+    Choose the workspace that contains the repository you want the agent to work in. The base branch and available machines are determined by this selection.
+  </Step>
+  <Step title="Write the description">
+    Give the agent the context it needs. A good description includes what to implement, why it matters, and any constraints or references (file paths, API docs, existing patterns to follow).
+
+    ```markdown
+    ## Goal
+    Add rate limiting to the `/api/export` endpoint.
+
+    ## Acceptance criteria
+    - Return HTTP 429 when a user exceeds 10 requests per minute
+    - Include a `Retry-After` header in the response
+    - Add unit tests covering the limit and the header value
+
+    ## References
+    - Existing rate limiter middleware: `src/middleware/rateLimit.ts`
+    - Endpoint location: `src/routes/export.ts`
+    ```
+  </Step>
+  <Step title="Choose an agent">
+    Select the AI coding agent for this task. If you've configured a default agent in the workspace settings, it's pre-selected.
+  </Step>
+  <Step title="Dispatch the task">
+    Click **Dispatch** (or **Save as Draft** if you want to review before running). GPR queues the task and assigns it to an available machine.
+  </Step>
+</Steps>
+
+## Editing and Re-dispatching Tasks
+
+You can edit a task's description, workspace, base branch, or agent at any point while it is in `draft` or `failed` state. Tasks in `queued` or `in_progress` state must be cancelled before editing.
+
+```bash
+# List your tasks and their current states via the GPR CLI
+gpr tasks list
+
+# View the full detail of a specific task
+gpr tasks get TASK-42
+
+# Re-dispatch a failed task after editing
+gpr tasks dispatch TASK-42
+```
+
+## Interacting with an In-Progress Task
+
+While a task is `in_progress` you can send a message to the running agent session without stopping it. This is useful for clarifying ambiguous requirements mid-run.
+
+```bash
+# Send a message to the agent working on TASK-42
+gpr sessions message TASK-42 "Use the existing ErrorResponse helper class for the 429 response body"
+```
+
+You can also pause the session, make manual edits to the code, then resume and let the agent continue from where you left off.
+
+<CardGroup cols={2}>
+  <Card title="Agent Sessions" icon="terminal" href="/how-gpr-works/agent-sessions">
+    Monitor and interact with the agent session running your task.
+  </Card>
+  <Card title="Workspaces" icon="folder-open" href="/how-gpr-works/workspaces">
+    Configure the repository, branch, and agent defaults a task inherits.
+  </Card>
+</CardGroup>

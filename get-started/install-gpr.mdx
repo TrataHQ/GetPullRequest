@@ -1,0 +1,133 @@
+---
+title: "Install the GPR CLI on Your Local Machine"
+sidebarTitle: "Install GPR"
+description: "Install the GPR command-line tool using npm, Homebrew, or a one-line curl script, then verify the installation and check your version."
+---
+
+The GPR CLI is the single binary that connects your machine to the GPR orchestrator. Install it once and every `gpr` command—connecting integrations, managing agents, creating tasks—runs from the same tool. Pick the installation method that fits your environment below.
+
+## Choose your installation method
+
+<CodeGroup>
+
+```bash npm
+npm install -g @gpr/cli
+```
+
+```bash Homebrew
+brew install gpr-cli/tap/gpr
+```
+
+```bash curl
+curl -fsSL https://install.getpr.dev | bash
+```
+
+</CodeGroup>
+
+<Note>
+  The npm package requires **Node.js 18 or later**. Run `node --version` to check. The Homebrew and curl installers bundle their own runtime and have no external dependencies.
+</Note>
+
+## Verify the installation
+
+After installing, confirm the `gpr` binary is on your `PATH`:
+
+```bash
+gpr --version
+```
+
+You should see output similar to:
+
+```
+gpr 1.4.2 (darwin-arm64)
+```
+
+If the command is not found, see the [troubleshooting tips](#troubleshooting) below.
+
+## Log in to your GPR account
+
+<Steps>
+  <Step title="Run the login command">
+    ```bash
+    gpr login
+    ```
+    This opens a browser window and prompts you to sign in with GitHub, Google, or your GPR credentials.
+  </Step>
+  <Step title="Complete the browser flow">
+    Authenticate in the browser. When you see **"You're logged in — return to your terminal"**, the flow is complete.
+  </Step>
+  <Step title="Confirm your session">
+    Back in your terminal, GPR prints your account details:
+    ```
+    ✓ Logged in as dana@example.com (team: acme-eng)
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  If you work across multiple GPR teams, use `gpr login --team <team-slug>` to switch context without logging out.
+</Tip>
+
+## Upgrade GPR
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm update -g @gpr/cli
+    ```
+  </Tab>
+  <Tab title="Homebrew">
+    ```bash
+    brew upgrade gpr
+    ```
+  </Tab>
+  <Tab title="curl">
+    Re-run the installer script — it always fetches the latest release:
+    ```bash
+    curl -fsSL https://install.getpr.dev | bash
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+**`command not found: gpr` after npm install**
+
+npm global binaries need to be on your `PATH`. Run the following to find where npm puts global packages, then add that directory to your shell profile:
+
+```bash
+npm config get prefix
+# Example output: /usr/local
+# Add /usr/local/bin to your PATH if it isn't there already
+```
+
+**`curl` installer is blocked by a corporate firewall**
+
+Download the binary directly from the [GitHub releases page](https://github.com/getpr/cli/releases) and place it somewhere on your `PATH`:
+
+```bash
+# Example for macOS arm64
+chmod +x gpr-darwin-arm64
+mv gpr-darwin-arm64 /usr/local/bin/gpr
+```
+
+**Permission denied on Linux**
+
+If the curl installer can't write to `/usr/local/bin`, install to your home directory instead:
+
+```bash
+curl -fsSL https://install.getpr.dev | INSTALL_DIR=$HOME/.local/bin bash
+```
+
+Then make sure `$HOME/.local/bin` is in your `PATH`.
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Next: Connect Your Machine" icon="arrow-right" href="/get-started/connect-your-machine">
+    Register your local environment so GPR knows where to run agent tasks.
+  </Card>
+  <Card title="Back: Introduction" icon="arrow-left" href="/get-started/introduction">
+    Review what you'll accomplish across the full setup guide.
+  </Card>
+</CardGroup>

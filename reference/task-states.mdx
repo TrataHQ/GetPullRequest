@@ -1,0 +1,291 @@
+---
+title: "GPR Task Lifecycle States: Complete Reference"
+sidebarTitle: "Task States"
+description: "Every state in the GPR task lifecycle explained—what each state means, how tasks enter and exit it, and which actions you can take while a task is in that state."
+---
+
+Every GPR task moves through a well-defined lifecycle from creation to completion. Understanding this lifecycle helps you monitor work in progress, diagnose stuck tasks, and know when it is safe to intervene. GPR transitions tasks between states automatically as work proceeds; you can also trigger transitions manually using CLI commands or the mobile app.
+
+---
+
+## State Overview
+
+The table below gives a quick reference of all eight states. The sections that follow describe each one in detail.
+
+| State | Terminal? | Agent Active? | PR Exists? | Description |
+|---|---|---|---|---|
+| `pending` | No | No | No | Created, waiting to be assigned |
+| `assigned` | No | No | No | Assigned to an agent; queued for execution |
+| `running` | No | Yes | No | Agent is actively working on the task |
+| `verifying` | No | Yes (checking) | No | GPR is running verification checks before opening a PR |
+| `pr_open` | No | No | Yes | Pull request is open; awaiting review or merge |
+| `merged` | Yes | No | Yes (merged) | PR was merged; task is complete |
+| `failed` | Yes* | No | Maybe | Task could not be completed; human action needed |
+| `cancelled` | Yes* | No | Maybe | Task was explicitly cancelled |
+
+<Note>
+  `failed` and `cancelled` are marked as terminal but recoverable: you can retry a `failed` task with `gpr task retry <id>` and re-create a cancelled task with `gpr task create`.
+</Note>
+
+---
+
+## State Flow Diagram
+
+```
+                    ┌─────────────┐
+                    │   pending   │◄────────────────────────┐
+                    └──────┬──────┘                         │
+                           │ assigned (auto or manual)      │
+                    ┌──────▼──────┐                         │
+                    │  assigned   │                         │
+                    └──────┬──────┘                         │
+                           │ machine picks up task          │
+                    ┌──────▼──────┐                         │
+                    │   running   │                         │
+                    └──────┬──────┘                         │
+                           │ agent signals completion       │
+                    ┌──────▼──────┐                         │
+                    │  verifying  │                         │
+                    └──────┬──────┘                         │
+               ┌───────────┴────────────┐                  │
+               │ checks pass            │ checks fail       │
+        ┌──────▼──────┐          ┌──────▼──────┐           │
+        │   pr_open   │          │   failed    ├───────────►┘
+        └──────┬──────┘          └─────────────┘ (retry)
+               │ PR merged
+        ┌──────▼──────┐
+        │   merged    │
+        └─────────────┘
+
+  (cancelled can be reached from: pending, assigned, running, pr_open)
+```
+
+---
+
+## pending
+
+A task enters `pending` when it is first created with `gpr task create`. No agent has been assigned yet, and no work has started. The task is visible in `gpr task list` and can be assigned, edited, or cancelled.
+
+**How a task enters `pending`:**
+- Created with `gpr task create` without `--agent` or when `workspace.auto_assign` is `false`
+- A `failed` task is retried and the new attempt is waiting for an available machine
+- A task was assigned to a machine that went offline and has been re-queued
+
+**How a task exits `pending`:**
+- You run `gpr task assign <id> --agent <name>` → moves to `assigned`
+- `workspace.auto_assign` is `true` and an agent becomes available → moves to `assigned`
+- You run `gpr task cancel <id>` → moves to `cancelled`
+
+**Available actions in `pending`:**
+- `gpr task assign <id>` — assign to an agent and machine
+- `gpr task status <id>` — view task details
+- `gpr task cancel <id>` — cancel the task
+
+```bash
+# Create a task that stays pending until manually assigned
+gpr task create "Refactor payment module" \
+  --repo myorg/payments \
+  --jira PAY-99
+```
+
+---
+
+## assigned
+
+A task is `assigned` once an agent and machine have been chosen but before the machine has started executing. The task sits in the machine's local queue. If the machine is busy with another task and `max_concurrent_tasks` is reached, the task waits here until a slot opens.
+
+**How a task enters `assigned`:**
+- `gpr task assign <id>` is run successfully
+- `workspace.auto_assign` selects an agent and machine automatically
+
+**How a task exits `assigned`:**
+- The machine picks up the task and the agent starts → moves to `running`
+- You force-reassign with `gpr task assign --force` → returns to `pending` briefly, then `assigned` to new target
+- You run `gpr task cancel <id>` → moves to `cancelled`
+
+**Available actions in `assigned`:**
+- `gpr task assign <id> --force` — reassign to a different agent or machine
+- `gpr task status <id>` — check assignment details
+- `gpr task cancel <id>` — cancel before execution starts
+
+```bash
+# Check if a task is waiting in queue
+gpr task status TASK-456
+# Example output:  state: assigned  |  machine: dev-laptop  |  queue position: 2
+```
+
+---
+
+## running
+
+A task is `running` while the AI coding agent is actively working—cloning or updating the repository, reading the linked issue, writing code, running tests, and committing changes. This is typically the longest-lived non-terminal state.
+
+**How a task enters `running`:**
+- The assigned machine picks up the task from its queue and the agent process launches
+
+**How a task exits `running`:**
+- The agent signals it has finished writing changes → moves to `verifying`
+- The agent exceeds `machine.task_timeout_minutes` → moves to `failed`
+- The agent process crashes or returns a non-zero exit code → moves to `failed`
+- You force-reassign with `--force` or cancel → moves to `assigned` or `cancelled`
+
+**Available actions in `running`:**
+- `gpr task status <id> --logs` — stream agent output
+- `gpr task status <id> --watch` — watch live state updates
+- `gpr task assign <id> --force` — interrupt and reassign (discards agent progress)
+- `gpr task cancel <id>` — cancel immediately (discards agent progress)
+
+```bash
+# Watch a running task with live agent logs
+gpr task status TASK-456 --watch --logs
+```
+
+<Warning>
+  Cancelling or force-reassigning a `running` task discards all uncommitted work the agent has done. GPR does not create a branch or stash changes before terminating the agent process.
+</Warning>
+
+---
+
+## verifying
+
+Before opening a pull request, GPR runs a verification phase in your real development environment on the registered machine. Verification includes running the project's test suite, linting checks, and any custom scripts defined in your `gpr.yaml`. This phase exists to ensure GPR never opens a PR with broken code.
+
+**How a task enters `verifying`:**
+- The agent signals completion of its coding work
+
+**How a task exits `verifying`:**
+- All verification checks pass → moves to `pr_open` and a pull request is opened on GitHub
+- Any check fails → moves to `failed` with a summary of which checks failed and why
+
+**Available actions in `verifying`:**
+- `gpr task status <id> --logs` — view verification output in real time
+- `gpr task cancel <id>` — cancel before the PR is opened
+
+```bash
+# View verification check results
+gpr task status TASK-456 --logs
+```
+
+<Tip>
+  If your project has slow tests, configure GPR to run a fast subset during verification by setting a custom verify script in `gpr.yaml` under `workspace.verify_command`. The full test suite still runs in CI after the PR is opened.
+</Tip>
+
+---
+
+## pr_open
+
+A task is `pr_open` once GPR has successfully created a GitHub pull request. The PR contains all the agent's changes, is linked back to the task and the original Jira or Linear issue, and is ready for human review. GPR monitors the PR for merge or close events.
+
+**How a task enters `pr_open`:**
+- Verification passes and GPR calls the GitHub API to open the pull request
+
+**How a task exits `pr_open`:**
+- The PR is merged on GitHub → moves to `merged`
+- The PR is closed without merging → moves to `failed` (with reason: `pr_closed`)
+- You run `gpr task cancel <id>` → moves to `cancelled` (the PR is closed automatically)
+
+**Available actions in `pr_open`:**
+- `gpr task status <id>` — view PR URL, review status, and CI results
+- `gpr task cancel <id>` — close the PR and cancel the task
+
+```bash
+# Get the PR URL for a task
+gpr task status TASK-456
+# Example output:  state: pr_open  |  PR: https://github.com/myorg/myapp/pull/42
+```
+
+---
+
+## merged
+
+`merged` is the successful terminal state. The pull request was merged into the base branch, the linked Jira or Linear issue has been transitioned to done (if `transition_on_merge` is `true`), and any configured notifications have been sent. No further action is required.
+
+**How a task enters `merged`:**
+- GitHub reports that the associated pull request was merged
+
+**How a task exits `merged`:**
+- It doesn't. `merged` is terminal.
+
+**Available actions in `merged`:**
+- `gpr task status <id>` — review task history, PR URL, and linked issue
+- No mutations are possible on a merged task
+
+```bash
+# Review a completed task
+gpr task status TASK-456
+```
+
+---
+
+## failed
+
+A task enters `failed` when something goes wrong at any stage: the agent crashes, verification checks do not pass, the PR is closed without merging, or the task exceeds its timeout. GPR records an error message and the stage at which failure occurred. You can inspect the error with `gpr task status`, fix the underlying issue, and retry.
+
+**How a task enters `failed`:**
+- Agent process exits with a non-zero code during `running`
+- Task timeout is exceeded during `running` or `verifying`
+- Verification checks fail during `verifying`
+- The GitHub PR is closed without merging during `pr_open`
+- A required integration (GitHub, Jira, Linear) returns an unrecoverable error
+
+**How a task exits `failed`:**
+- You run `gpr task retry <id>` → moves back to `pending` (or `assigned` if auto-assign is on)
+
+**Available actions in `failed`:**
+- `gpr task status <id> --logs` — read the error message and agent output
+- `gpr task retry <id>` — retry with the same or different settings
+- `gpr task retry <id> --clean` — retry with a fresh workspace clone
+
+```bash
+# Inspect a failed task
+gpr task status TASK-456 --logs
+
+# Retry with a clean workspace
+gpr task retry TASK-456 --clean
+```
+
+---
+
+## cancelled
+
+A task is `cancelled` when you explicitly cancel it at any point before `merged`. GPR stops the agent (if running), closes the GitHub PR (if one was opened), and records the cancellation. Cancelled tasks can be recreated from scratch but not retried in place.
+
+**How a task enters `cancelled`:**
+- You run `gpr task cancel <id>` from the CLI or mobile app
+
+**How a task exits `cancelled`:**
+- It doesn't. `cancelled` is terminal. Create a new task with `gpr task create` to start fresh.
+
+**Available actions in `cancelled`:**
+- `gpr task status <id>` — review when and why the task was cancelled
+- `gpr task create` — create a new task if you want to restart the work
+
+```bash
+# Cancel a running task
+gpr task cancel TASK-456
+
+# Confirm cancellation
+gpr task status TASK-456
+# Example output:  state: cancelled  |  reason: manually cancelled at 14:32 UTC
+```
+
+---
+
+## State Transition Quick Reference
+
+| From | To | Trigger |
+|---|---|---|
+| `pending` | `assigned` | `gpr task assign` or auto-assign |
+| `pending` | `cancelled` | `gpr task cancel` |
+| `assigned` | `running` | Machine picks up task |
+| `assigned` | `cancelled` | `gpr task cancel` |
+| `running` | `verifying` | Agent signals completion |
+| `running` | `failed` | Timeout, crash, or error |
+| `running` | `cancelled` | `gpr task cancel` |
+| `verifying` | `pr_open` | All checks pass |
+| `verifying` | `failed` | Any check fails |
+| `verifying` | `cancelled` | `gpr task cancel` |
+| `pr_open` | `merged` | PR merged on GitHub |
+| `pr_open` | `failed` | PR closed without merge |
+| `pr_open` | `cancelled` | `gpr task cancel` |
+| `failed` | `pending` | `gpr task retry` |

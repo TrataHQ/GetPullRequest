@@ -1,0 +1,267 @@
+---
+title: "Connect Any ACP-Compatible Coding Agent to GPR"
+sidebarTitle: "ACP Agents"
+description: "Understand the Agent Communication Protocol, implement the required start/stop/status interface, configure your custom agent in GPR, and verify compatibility before going live."
+---
+
+GPR is not limited to first-party integrations like Claude Code, Codex, or Cursor. Any coding agent that implements the **Agent Communication Protocol (ACP)** can plug into GPR's orchestration layer and participate in the full workflow: receiving task prompts from tickets, performing code changes locally, reporting status back to GPR, and triggering pull request creation when done. ACP is a lightweight, process-oriented interface — if your agent can respond to three shell commands, it is ACP-compatible.
+
+## What Is the Agent Communication Protocol?
+
+ACP (Agent Communication Protocol) is GPR's open interface specification for coding agents. It defines how GPR starts an agent, monitors its progress, and receives its output — all through standard process lifecycle primitives and a small set of conventions for structured output.
+
+ACP is intentionally minimal. It does not prescribe how the agent does its work internally, which model or language it uses, or how it communicates with external APIs. It only specifies the boundary between GPR and the agent process.
+
+This page covers everything you need to connect any ACP-compliant agent to GPR, including the required interface, event format, and configuration.
+
+### ACP at a glance
+
+| Concern | How ACP handles it |
+|---|---|
+| Agent startup | GPR invokes `<agent-binary> start --task <task-file>` |
+| Progress reporting | Agent writes structured JSON lines to stdout |
+| Completion signal | Agent exits with code `0` (success) or non-zero (failure) |
+| Status polling | GPR invokes `<agent-binary> status --run-id <id>` |
+| Cancellation | GPR invokes `<agent-binary> stop --run-id <id>` |
+
+## Required Interface
+
+An ACP-compatible agent must implement three subcommands: `start`, `status`, and `stop`. Each is invoked by GPR as a separate process call.
+
+### `start`
+
+GPR calls `start` to begin an agent run.
+
+```
+<agent-binary> start --task <path-to-task-file> --working-dir <repo-path> [--run-id <id>]
+```
+
+**Arguments:**
+
+| Argument | Required | Description |
+|---|---|---|
+| `--task` | Yes | Path to a Markdown file containing the task prompt (title, description, acceptance criteria). |
+| `--working-dir` | Yes | Absolute path to the repository root the agent should operate on. |
+| `--run-id` | No | An optional identifier GPR passes to correlate this run; the agent should echo it in all output. |
+
+**Expected behavior:** The agent begins working and streams structured JSON lines to stdout (see Output Format below). It exits with code `0` when the task is complete and all changes are committed to the working directory, or with a non-zero code if it fails.
+
+### `status`
+
+GPR may call `status` while `start` is running (in a separate process) to get a structured progress snapshot.
+
+```
+<agent-binary> status --run-id <id>
+```
+
+**Expected output** (one JSON object to stdout, then exit 0):
+
+```json
+{
+  "run_id": "gpr-run-abc123",
+  "state": "running",
+  "progress": 0.6,
+  "message": "Writing unit tests for UserService",
+  "files_modified": ["src/services/UserService.ts", "src/services/UserService.test.ts"]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `run_id` | string | The run ID passed to `start`. |
+| `state` | string | One of `running`, `complete`, `failed`. |
+| `progress` | number (0–1) | Optional. Estimated fraction complete. |
+| `message` | string | Optional. Human-readable status message. |
+| `files_modified` | string[] | Optional. List of files touched so far. |
+
+### `stop`
+
+GPR calls `stop` to cancel an in-progress run (e.g., on timeout or user cancellation).
+
+```
+<agent-binary> stop --run-id <id>
+```
+
+**Expected behavior:** The agent terminates the `start` process for this run ID, rolls back or discards any incomplete changes (or leaves them staged — GPR will discard the branch), and exits with code `0`.
+
+## Output Format
+
+While `start` is running, the agent should write newline-delimited JSON events to stdout. GPR reads these to update the run log and drive status transitions in your ticket tracker.
+
+```json
+{"event": "started", "run_id": "gpr-run-abc123", "timestamp": "2025-01-15T10:00:00Z"}
+{"event": "progress", "message": "Analyzing repository structure", "progress": 0.1}
+{"event": "progress", "message": "Implementing changes to UserService", "progress": 0.5}
+{"event": "progress", "message": "Running tests", "progress": 0.8}
+{"event": "complete", "run_id": "gpr-run-abc123", "files_modified": ["src/services/UserService.ts"], "timestamp": "2025-01-15T10:04:22Z"}
+```
+
+### Event types
+
+| Event | Required | Fields |
+|---|---|---|
+| `started` | Yes | `run_id`, `timestamp` |
+| `progress` | No | `message`, `progress` (0–1) |
+| `complete` | Yes | `run_id`, `files_modified[]`, `timestamp` |
+| `failed` | On failure | `run_id`, `error`, `timestamp` |
+
+<Note>
+  Non-JSON lines written to stdout are ignored by GPR but preserved in the raw run log. Writing human-readable debug output alongside JSON events is fine as long as each JSON event is on its own line.
+</Note>
+
+## Example Configuration
+
+Register your ACP agent in `gpr.config.yaml`:
+
+```yaml
+# gpr.config.yaml
+agents:
+  - name: my-custom-agent
+    type: acp
+    binary: /usr/local/bin/my-agent        # path to the agent binary (or name if on PATH)
+    timeout_seconds: 900                   # abort the run after this long
+    working_directory: "."                 # default repo root
+    env:
+      MY_AGENT_MODEL: gpt-4o
+      MY_AGENT_LOG_LEVEL: info
+```
+
+Then register the agent with the CLI:
+
+```bash
+gpr agent add my-custom-agent \
+  --type acp \
+  --binary /usr/local/bin/my-agent
+```
+
+Verify it appears in the agent list:
+
+```bash
+gpr agent list
+```
+
+```
+NAME               TYPE   STATUS    BINARY
+my-custom-agent    acp    ready     /usr/local/bin/my-agent
+```
+
+## Testing ACP Compatibility
+
+GPR ships a compatibility test harness you can run before adding your agent to a live workflow.
+
+<Steps>
+  <Step title="Generate a sample task file">
+    ```bash
+    gpr acp test-task --output /tmp/sample-task.md
+    ```
+
+    This creates a realistic task file similar to what GPR generates from a real ticket.
+  </Step>
+
+  <Step title="Run the compatibility check">
+    ```bash
+    gpr acp test --binary /usr/local/bin/my-agent --task /tmp/sample-task.md
+    ```
+
+    GPR calls your agent's `start`, `status`, and `stop` commands in sequence and validates:
+    - The `start` command exits with code 0 on success.
+    - JSON events are well-formed and include required fields.
+    - The `status` command returns a valid JSON snapshot.
+    - The `stop` command terminates the run cleanly.
+  </Step>
+
+  <Step title="Review the compatibility report">
+    ```
+    ACP Compatibility Report
+    ────────────────────────
+    ✔ start   exits 0 on success
+    ✔ start   emits 'started' event
+    ✔ start   emits 'complete' event with files_modified
+    ✔ status  returns valid JSON snapshot
+    ✔ stop    terminates run cleanly
+    ⚠ status  'progress' field missing (optional but recommended)
+
+    Result: COMPATIBLE (1 warning)
+    ```
+
+    Warnings indicate optional fields that are missing but won't block GPR from using the agent. Failures must be resolved before the agent can be used in production.
+  </Step>
+</Steps>
+
+## Minimal Reference Implementation
+
+The following shell script is a minimal ACP-compatible agent skeleton you can use as a starting point. It implements the required interface but does not perform any real coding work.
+
+```bash
+#!/usr/bin/env bash
+# my-agent.sh — minimal ACP-compatible agent skeleton
+
+COMMAND=$1
+shift
+
+case "$COMMAND" in
+  start)
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --task) TASK_FILE="$2"; shift 2 ;;
+        --working-dir) WORKING_DIR="$2"; shift 2 ;;
+        --run-id) RUN_ID="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+
+    echo '{"event":"started","run_id":"'"$RUN_ID"'","timestamp":"'"$(date -u +%FT%TZ)"'"}'
+
+    # --- Your agent logic here ---
+    echo '{"event":"progress","message":"Working on task","progress":0.5}'
+    # Read $TASK_FILE, do the work, modify files in $WORKING_DIR
+    # ---
+
+    echo '{"event":"complete","run_id":"'"$RUN_ID"'","files_modified":[],"timestamp":"'"$(date -u +%FT%TZ)"'"}'
+    exit 0
+    ;;
+
+  status)
+    while [[ $# -gt 0 ]]; do
+      case $1 in --run-id) RUN_ID="$2"; shift 2 ;; *) shift ;; esac
+    done
+    echo '{"run_id":"'"$RUN_ID"'","state":"running","message":"In progress"}'
+    exit 0
+    ;;
+
+  stop)
+    # Terminate any background processes for this run
+    exit 0
+    ;;
+
+  *)
+    echo "Unknown command: $COMMAND" >&2
+    exit 1
+    ;;
+esac
+```
+
+<Tip>
+  For agents implemented in languages with richer tooling, consider using one of the ACP client libraries available for Python (`pip install gpr-acp`), TypeScript (`npm install @gpr/acp`), and Go (`go get github.com/getpullrequest/acp-go`). These handle argument parsing, event serialization, and process lifecycle management for you.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="'acp compatibility check failed: start exited with non-zero code'">
+    Your agent's `start` command is returning a failure exit code. Check stderr output from the test run for error messages. Ensure the agent binary has execute permissions (`chmod +x`) and all its dependencies are installed.
+  </Accordion>
+
+  <Accordion title="GPR reports 'malformed JSON event' during a run">
+    A line written to stdout is not valid JSON. Review your agent's output serialization logic. If your agent logs human-readable text to stdout as well as JSON events, ensure each JSON event is on its own line and non-JSON lines do not begin with `{`.
+  </Accordion>
+
+  <Accordion title="Status command returns stale data">
+    If your `start` command runs in the foreground (blocking), the `status` command needs to read shared state from a file or socket, since GPR invokes `status` as a separate process. Write a state file (e.g., `/tmp/gpr-run-<id>.json`) from `start` and read it in `status`.
+  </Accordion>
+
+  <Accordion title="GPR times out before the agent signals completion">
+    Increase `timeout_seconds` in your agent config. Also ensure your agent writes a `complete` or `failed` event to stdout before exiting — without this signal, GPR waits until the timeout rather than finishing early.
+  </Accordion>
+</AccordionGroup>

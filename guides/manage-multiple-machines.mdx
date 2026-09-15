@@ -1,0 +1,280 @@
+---
+title: "Register and Manage Multiple Local Machines"
+sidebarTitle: "Manage Machines"
+description: "Add development machines to GPR, give them memorable names, route specific tasks to the right environment, and cleanly remove machines you no longer use."
+---
+
+GPR runs agent sessions on your local machines rather than in the cloud, which means the code is always built and tested in the same environment where you develop. As your setup grows—a personal MacBook, a powerful Linux workstation, a dedicated CI box—GPR lets you register each one and route tasks to exactly the right environment. This guide covers the full lifecycle: adding a machine, naming it, routing tasks to it, and removing it when it's no longer needed.
+
+## How machines work in GPR
+
+Each machine you register runs the GPR daemon (`gprd`), a lightweight background process that listens for incoming task assignments, manages agent sessions, and reports status back to GPR's orchestration layer. The daemon communicates outbound over HTTPS—no inbound firewall rules are required.
+
+When you assign a task, GPR checks the target machine's daemon status, clones (or updates) the repository, invokes the agent, runs your verification steps, and opens the PR—all on that machine, in that environment.
+
+<Note>
+The GPR daemon does not store your source code or credentials remotely. Everything stays on your machine. GPR's cloud layer only handles task metadata, status updates, and PR orchestration.
+</Note>
+
+## Add a new machine
+
+<Steps>
+
+### Install the GPR daemon
+
+On the machine you want to register, install the GPR CLI and start the daemon:
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    brew install getpullrequest/tap/gpr
+    gprd start
+    ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    curl -fsSL https://install.getpullrequest.com | sh
+    gprd start
+    ```
+  </Tab>
+  <Tab title="Windows (WSL2)">
+    ```bash
+    curl -fsSL https://install.getpullrequest.com | sh
+    gprd start
+    ```
+    Run these commands inside your WSL2 terminal. The daemon runs within the WSL2 environment.
+  </Tab>
+</Tabs>
+
+### Register the machine
+
+From the same machine, register it with your GPR account:
+
+```bash
+gpr machine register
+```
+
+GPR opens a browser window for authentication (or prints a URL if you're on a headless machine). After you authenticate, the machine is registered under your account with an auto-generated name.
+
+### Give it a memorable name
+
+Auto-generated names aren't easy to remember. Rename the machine immediately:
+
+```bash
+gpr machine rename my-machine macbook-pro
+```
+
+Use a name that describes the machine's purpose or location—for example, `macbook-pro`, `linux-workstation`, `home-office-mac`, or `ci-box`. Names must be lowercase, alphanumeric, and hyphen-separated.
+
+### Verify registration
+
+From any machine (including your phone or another computer), confirm the new machine appears:
+
+```bash
+gpr machine list
+```
+
+```
+NAME                STATUS    AGENTS                          LAST SEEN
+macbook-pro         online    claude-code, codex, cursor      just now
+linux-workstation   online    claude-code, acp-generic        5 min ago
+home-office-mac     online    claude-code, cursor             just now
+old-mbp             offline   claude-code                     4 days ago
+```
+
+</Steps>
+
+## View machine details
+
+To see full details about a specific machine—operating system, registered agents, active sessions, and resource usage:
+
+```bash
+gpr machine info macbook-pro
+```
+
+```
+Name:         macbook-pro
+Status:       online
+OS:           macOS 14.4 (arm64)
+GPR daemon:   v2.3.1
+Agents:
+  claude-code   ✔ installed (claude-3-5-sonnet)
+  codex         ✔ installed
+  cursor        ✔ installed (Cursor 0.42)
+Active sessions:  1 (sess_a1b2c3 — TASK-123)
+Queued tasks:     0
+Registered:   2024-11-03
+Last seen:    just now
+```
+
+## Route tasks to a specific machine
+
+### Assign directly
+
+Pass `--machine` when assigning any task to ensure it runs on a specific machine:
+
+```bash
+gpr task assign TASK-456 --agent claude-code --machine linux-workstation
+```
+
+### Set a default machine per repository
+
+If most tasks for a repository should run on the same machine, set a repository-level default:
+
+```bash
+gpr config set defaults.machine macbook-pro --repo your-org/your-repo
+```
+
+Tasks assigned without an explicit `--machine` flag for that repository will automatically route to `macbook-pro`.
+
+<Tip>
+Use repository-level defaults to keep tasks for backend services on your Linux workstation (which has the right database and Docker setup) and frontend tasks on your MacBook (which has iOS simulators).
+</Tip>
+
+### Set a default machine globally
+
+To set a fallback for all repositories, set the global default:
+
+```bash
+gpr config set defaults.machine macbook-pro
+```
+
+The resolution order is: explicit `--machine` flag → repository default → global default → GPR auto-select.
+
+### Route by agent availability
+
+To route to whichever machine has a specific agent installed and is currently online—without naming a machine explicitly:
+
+```bash
+gpr task assign TASK-789 --agent cursor
+```
+
+GPR picks the first online machine that has Cursor installed.
+
+## Manage installed agents on a machine
+
+Each machine tracks which agents are installed locally. To see and update the agent list on a specific machine, run the following commands **on that machine**:
+
+<CodeGroup>
+```bash List installed agents
+gpr agent list
+```
+
+```bash Install an agent
+gpr agent install claude-code
+```
+
+```bash Update an agent to the latest version
+gpr agent update claude-code
+```
+
+```bash Remove an agent
+gpr agent remove codex
+```
+</CodeGroup>
+
+After adding or removing an agent, the `gpr machine list` output updates within a few seconds.
+
+## Keep the daemon running
+
+The GPR daemon must be running for a machine to accept tasks. Configure it to start automatically at login:
+
+<Tabs>
+  <Tab title="macOS (launchd)">
+    ```bash
+    gprd install --start-at-login
+    ```
+
+    This creates a launchd plist at `~/Library/LaunchAgents/com.getpullrequest.daemon.plist` and starts the daemon immediately.
+  </Tab>
+  <Tab title="Linux (systemd)">
+    ```bash
+    gprd install --systemd --user
+    systemctl --user enable gprd
+    systemctl --user start gprd
+    ```
+  </Tab>
+  <Tab title="Manual start">
+    ```bash
+    gprd start
+    ```
+
+    Run this each time you want the machine to accept tasks. The daemon runs in the foreground; use `gprd start --daemon` to run it in the background.
+  </Tab>
+</Tabs>
+
+To check the daemon's status at any time:
+
+```bash
+gprd status
+```
+
+```
+GPR daemon v2.3.1
+Status:  running (pid 48291)
+Uptime:  3 days, 14 hours
+Machine: macbook-pro
+Active sessions: 1
+```
+
+<Warning>
+If a machine goes to sleep while a session is running, GPR pauses the session and resumes it automatically when the machine wakes. To prevent mid-session interruptions, disable sleep on machines you use for long-running tasks: on macOS, use `caffeinate -i gprd` to keep the daemon awake while a session is active.
+</Warning>
+
+## Remove a machine
+
+When a machine is decommissioned or you no longer want it to receive tasks, remove it from your GPR account:
+
+```bash
+gpr machine remove old-mbp
+```
+
+```
+? Are you sure you want to remove "old-mbp"? This cannot be undone. (y/N) y
+✔ Machine "old-mbp" removed. Any queued tasks have been reassigned to macbook-pro.
+```
+
+<Note>
+Removing a machine from GPR does not uninstall the GPR daemon or CLI from that machine. To fully clean up, run `gprd uninstall` on the machine itself.
+</Note>
+
+If the machine has active sessions, GPR prompts you to either wait for the sessions to finish or cancel them before removing:
+
+```bash
+gpr machine remove old-mbp --cancel-sessions
+```
+
+## Rename a machine
+
+```bash
+gpr machine rename old-name new-name
+```
+
+Renaming takes effect immediately. Existing task assignments and session logs retain the old name in their history but new assignments will use the new name.
+
+## Audit machine activity
+
+To see a history of sessions run on a specific machine:
+
+```bash
+gpr machine sessions macbook-pro --limit 20
+```
+
+```
+SESSION       TASK       AGENT        STATUS    STARTED           DURATION
+sess_a1b2c3   TASK-123   claude-code  done      2024-12-01 10:02  14m
+sess_b2c3d4   TASK-118   codex        done      2024-11-30 15:44  6m
+sess_c3d4e5   TASK-115   claude-code  failed    2024-11-30 09:12  4m
+```
+
+To see all sessions across all machines:
+
+```bash
+gpr session list --limit 50
+```
+
+## Next steps
+
+- [Assign a task to a specific machine](/guides/assign-a-task)
+- [Monitor a session on any machine](/guides/monitor-progress)
+- [Handle a session that failed on a machine with environment issues](/guides/handle-task-failures)

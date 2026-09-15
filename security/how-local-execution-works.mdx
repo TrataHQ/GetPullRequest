@@ -1,0 +1,108 @@
+---
+title: "How Local Execution Works in GPR"
+sidebarTitle: "Local Execution"
+description: "GPR runs AI coding agents directly on your machine. Your source code never touches GPR's cloud—only task metadata and coordination signals travel over the network."
+---
+
+When you assign a task in GPR, the work happens entirely on your own computer. GPR's cloud infrastructure acts as a coordination layer—it routes instructions, tracks status, and delivers results to your phone or Slack—but it never receives, stores, or processes your source code. Every file read, every test run, and every git commit originates from a process running inside your own development environment.
+
+## The Local Daemon
+
+GPR installs a lightweight background process called the **GPR daemon** (`gprd`) on your machine. The daemon is the single point of contact between your local environment and GPR's cloud coordination service.
+
+<Info>
+  The daemon starts automatically when you log in and runs with the same operating-system permissions as your normal user account. It does not require root or administrator access.
+</Info>
+
+Here is what the daemon does:
+
+- **Listens for task assignments** sent from GPR's cloud over a persistent, encrypted WebSocket connection.
+- **Spawns and supervises agent processes** (Claude Code, Codex, Cursor, or any ACP-compatible agent) as child processes under your user account.
+- **Streams status events back** to GPR's cloud so you can monitor progress from your phone or Slack—without sending any source code.
+- **Manages agent lifecycle**: starts agents when a task arrives, monitors them for crashes or timeouts, and cleans up when a task finishes.
+
+## The Agent Process Model
+
+Each task gets its own isolated agent process. The agent runs in your existing shell environment, inheriting your PATH, your SSH keys, your git configuration, and your local tool installations. This means the agent can do everything you can do at a terminal—and nothing more.
+
+```
+┌─────────────────────────────────────────────┐
+│               Your Machine                  │
+│                                             │
+│  ┌──────────┐    spawns    ┌─────────────┐  │
+│  │ GPR      │─────────────▶│ Agent       │  │
+│  │ Daemon   │              │ Process     │  │
+│  │ (gprd)   │◀─────────────│ (Claude /   │  │
+│  │          │  status only │  Codex /    │  │
+│  └────┬─────┘              │  Cursor…)   │  │
+│       │                    └──────┬──────┘  │
+│       │ metadata &                │         │
+│       │ status events             │ reads / │
+│       │ only                      │ writes  │
+└───────┼───────────────────────────┼─────────┘
+        │                           │
+        ▼                           ▼
+  GPR Cloud                  Your Codebase
+  (coordination)             (stays local)
+```
+
+### What the agent can access
+
+| Resource | Accessible? | Notes |
+|---|---|---|
+| Your local file system | ✅ Yes | Scoped to your user account's permissions |
+| Your git repositories | ✅ Yes | Uses your existing git credentials |
+| Your terminal environment | ✅ Yes | Inherits your PATH, env vars, shell config |
+| Installed dev tools (npm, cargo, etc.) | ✅ Yes | No separate tool installation needed |
+| Other users' files | ❌ No | OS-level user isolation applies |
+| Root/system directories | ❌ No | Daemon does not run with elevated privileges |
+
+### What the agent sends upstream
+
+The agent communicates exclusively through the daemon, and the daemon only forwards **metadata and status signals** to GPR's cloud—never file contents. Examples of what does and does not leave your machine:
+
+| Sent to GPR Cloud | Stays on Your Machine |
+|---|---|
+| Task status (started, running, complete) | Source code files |
+| Step descriptions ("running tests", "fixing lint") | File diffs and patches |
+| Pull request URL after it is opened | Compiler output and test logs |
+| Error category (e.g., "tests failed") | Credentials and secrets |
+| Agent exit code | Your `.env` files |
+
+<Note>
+  Pull request links are sent to the cloud so GPR can surface them in Slack and on your phone. The PR itself lives on GitHub or GitLab—GPR's cloud only stores the URL, not the diff.
+</Note>
+
+## Agent Verification Before Opening a PR
+
+Before the agent opens a pull request, the GPR daemon runs a local verification pass. This includes building the project, running your test suite, and checking any lint or type-check scripts defined in your project's configuration. All of this happens on your machine, in your real environment, against your actual dependencies.
+
+<Tip>
+  Because verification runs locally, it catches environment-specific issues—missing native dependencies, platform-specific paths, secrets loaded from local `.env` files—that a cloud-based CI runner would miss at this stage.
+</Tip>
+
+If verification fails, the daemon reports the failure category and a short summary back to the cloud, but the full output (including any secrets that might appear in test logs) remains on your machine. You can review the full logs locally with `gprd logs --last`.
+
+## Offline and Restricted Environments
+
+The daemon requires an outbound HTTPS connection to receive task assignments and send status updates. If your machine is offline or behind a strict firewall:
+
+- **Pending tasks** queue in GPR's cloud and are delivered when connectivity resumes.
+- **In-progress tasks** continue running locally; status updates are buffered and flushed when the connection is restored.
+- **No task data is lost** due to a temporary network outage.
+
+See [Network Requirements](/security/data-and-connectivity) for the specific hostnames and ports the daemon connects to.
+
+---
+
+<CardGroup cols={2}>
+  <Card title="Permissions" icon="key" href="/security/permissions">
+    What OAuth scopes and API token permissions GPR requests and why.
+  </Card>
+  <Card title="Data & Connectivity" icon="shield" href="/security/data-and-connectivity">
+    A full breakdown of what data GPR transmits versus what stays local.
+  </Card>
+  <Card title="Security FAQ" icon="circle-question" href="/security/security-faq">
+    Quick answers to common questions about GPR's security model.
+  </Card>
+</CardGroup>

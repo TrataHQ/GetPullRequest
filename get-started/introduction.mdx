@@ -1,0 +1,66 @@
+---
+title: "Get Started with GPR in 5 Minutes"
+sidebarTitle: "Introduction"
+description: "GPR connects Jira, GitHub, GitLab, Slack, and AI coding agents into one automated workflow—from ticket to pull request, verified on your machine."
+---
+
+GPR turns your existing tools into a single, end-to-end engineering workflow. Connect your issue tracker, your code host, and an AI coding agent once, and GPR handles the rest: picking up tickets, writing and verifying code on your local machine, and opening pull requests—all without you switching tabs or leaving your phone.
+
+By the end of this guide you will have GPR installed, your machine registered, GitHub connected, a coding agent configured, and your first automated task running. The whole setup takes about five minutes.
+
+## What you'll set up
+
+<Steps>
+  <Step title="Install the GPR CLI">
+    Get the `gpr` command-line tool onto your machine using npm, Homebrew, or a one-line curl installer.
+  </Step>
+  <Step title="Connect your machine">
+    Run `gpr connect machine` to register your local environment with GPR so the orchestrator knows where to run agent tasks.
+  </Step>
+  <Step title="Connect GitHub">
+    Authorize GPR to read and write pull requests on your behalf with a single OAuth flow.
+  </Step>
+  <Step title="Add a coding agent">
+    Tell GPR which AI agent to use—Claude Code, Codex, Cursor, or any ACP-compatible agent—and hand it the credentials it needs.
+  </Step>
+  <Step title="Run your first task">
+    Create a task from a Jira ticket or plain description, watch the agent work in your real dev environment, and see the PR appear.
+  </Step>
+</Steps>
+
+## Jump to a step
+
+<CardGroup cols={2}>
+  <Card title="Install GPR" icon="terminal" href="/get-started/install-gpr">
+    Install the CLI via npm, Homebrew, or curl and verify your setup.
+  </Card>
+  <Card title="Connect Your Machine" icon="laptop" href="/get-started/connect-your-machine">
+    Register your local machine as a GPR execution environment.
+  </Card>
+  <Card title="Connect GitHub" icon="github" href="/get-started/connect-github">
+    Authorize GPR to manage pull requests in your GitHub repos.
+  </Card>
+  <Card title="Connect a Coding Agent" icon="robot" href="/get-started/connect-a-coding-agent">
+    Configure Claude Code, Codex, Cursor, or another ACP-compatible agent.
+  </Card>
+  <Card title="Run Your First Task" icon="play" href="/get-started/run-your-first-task">
+    Create a task end-to-end and watch GPR open a verified pull request.
+  </Card>
+</CardGroup>
+
+## How GPR fits into your stack
+
+GPR sits between your project management tools (Jira, GitHub Issues) and your code review tools (GitHub PRs, GitLab MRs). When a ticket is assigned or triggered, GPR dispatches the work to a coding agent running **on your machine**, in your real development environment—not in an isolated cloud sandbox. The agent reads your codebase, makes changes, and runs your actual test suite. GPR then verifies the result before it opens a pull request and posts a summary back to Slack or the original ticket.
+
+<Note>
+  GPR requires that at least one machine is connected and online to execute agent tasks. If your machine is offline when a task is triggered, GPR queues the task and starts it as soon as the machine comes back online.
+</Note>
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **Node.js 18+** (required if installing via npm)
+- A **GitHub account** with permission to open pull requests in at least one repository
+- One of the supported coding agents installed locally: [Claude Code](https://docs.anthropic.com/claude-code), [OpenAI Codex CLI](https://github.com/openai/codex), or [Cursor](https://cursor.sh)
+- (Optional) A **Jira** or **GitLab** account if you want to connect those integrations later

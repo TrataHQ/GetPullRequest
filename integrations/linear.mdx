@@ -1,0 +1,226 @@
+---
+title: "Connect GPR to Linear: Issues, Cycles, and Priorities"
+sidebarTitle: "Linear"
+description: "Generate a Linear API key, configure team and project targeting, and let GPR pick up issues, drive status transitions, and respect cycle and priority ordering."
+---
+
+GPR's Linear integration brings the same automated workflow you get with Jira to teams that use Linear for project management. Drop a Linear issue into a target state (or attach a label), and GPR picks it up, assigns it to a coding agent running on your machine, pushes a pull request, and advances the issue through your workflow — all without you leaving your phone or switching context. Linear's API key model makes the setup fast: no OAuth app, no admin approval, just a token and a team selection.
+
+## Prerequisites
+
+- A Linear account with **Member** access or higher on the workspace you want to connect.
+- A GPR account with at least one project and coding agent configured.
+- The GPR CLI installed (`npm install -g gpr`).
+
+## Generate a Linear API Key
+
+<Steps>
+  <Step title="Open Linear API settings">
+    Go to **Linear → Settings → API** (or visit `linear.app/[your-workspace]/settings/api`). Click **Create key**.
+  </Step>
+
+  <Step title="Name and copy the key">
+    Give the key a descriptive label such as `GPR Integration`. Copy the key immediately — Linear shows it only once.
+  </Step>
+
+  <Step title="Store the key as an environment variable">
+    ```bash
+    export LINEAR_API_KEY="lin_api_xxxxxxxxxxxx"
+    ```
+
+    For persistent storage, add this line to your shell profile or use a secrets manager. GPR reads `LINEAR_API_KEY` by default, or you can point it to a different variable name in your config.
+  </Step>
+</Steps>
+
+<Note>
+  If you prefer not to store the key in your environment, you can pass `--api-key-env MY_VAR` when running `gpr integration add linear` to specify any env variable name.
+</Note>
+
+## Connect Linear to GPR
+
+<Steps>
+  <Step title="Run the connect command">
+    ```bash
+    gpr integration add linear --api-key-env LINEAR_API_KEY
+    ```
+
+    GPR authenticates with the Linear API, lists all teams your key has access to, and prompts you to select one or more.
+  </Step>
+
+  <Step title="Select teams and projects">
+    ```bash
+    gpr linear team add "Engineering"
+    gpr linear team add "Platform"
+    ```
+
+    You can also scope GPR to a specific Linear **Project** within a team:
+
+    ```bash
+    gpr linear project add "Q3 Backend Hardening"
+    ```
+  </Step>
+
+  <Step title="Set the trigger condition">
+    Configure which issues GPR should act on. The default trigger is the label `gpr-ready`, but you can use any label or a specific workflow state:
+
+    ```yaml
+    # gpr.config.yaml
+    linear:
+      api_key_env: LINEAR_API_KEY
+      teams:
+        - name: Engineering
+          trigger:
+            type: label           # "label" | "state" | "assignee"
+            value: gpr-ready
+    ```
+  </Step>
+
+  <Step title="Verify the connection">
+    ```bash
+    gpr integration status linear
+    ```
+
+    ```
+    ✔ Linear  connected  (workspace: yourcompany, teams: Engineering, Platform)
+    ```
+  </Step>
+</Steps>
+
+## Team and Project Selection
+
+GPR can watch multiple teams and projects simultaneously. Each entry can have its own trigger condition, status mapping, and agent assignment, giving you fine-grained control over which issues flow to which agents.
+
+```yaml
+# gpr.config.yaml
+linear:
+  api_key_env: LINEAR_API_KEY
+  teams:
+    - name: Engineering
+      trigger:
+        type: label
+        value: gpr-ready
+      agent: claude-code
+    - name: Platform
+      trigger:
+        type: state
+        value: "Queued for GPR"
+      agent: codex
+```
+
+<Tip>
+  Create a dedicated Linear workflow state called **"Queued for GPR"** and make it visible on your team's board. This gives non-technical stakeholders a clear handoff point without requiring them to apply labels.
+</Tip>
+
+## How GPR Picks Up Issues
+
+GPR polls the Linear API every 60 seconds (configurable via `linear.poll_interval_seconds`) and processes any issue that matches the trigger condition. For each matched issue, GPR:
+
+1. Reads the **title**, **description**, and any linked sub-issues to assemble a task prompt.
+2. Moves the issue to the configured `agent_running` state to indicate work is in progress.
+3. Assigns the issue to the GPR service account (optional, configurable).
+4. Passes the prompt to the coding agent running locally.
+5. Posts progress comments on the issue at each lifecycle stage.
+6. Opens a pull request and attaches it as a linked resource on the issue.
+
+## Status Transitions
+
+GPR maps its internal lifecycle stages to Linear workflow states. The defaults match Linear's standard workflow, but most teams will want to customize them.
+
+### Default state mapping
+
+| GPR stage | Default Linear state |
+|---|---|
+| `picked_up` | In Progress |
+| `agent_running` | In Progress |
+| `verification_passed` | In Review |
+| `pr_opened` | In Review |
+| `complete` | Done |
+| `failed` | Backlog |
+
+### Customizing state transitions
+
+```yaml
+# gpr.config.yaml
+linear:
+  teams:
+    - name: Engineering
+      state_map:
+        picked_up: "In Progress"
+        agent_running: "In Progress"
+        verification_passed: "Ready for Review"
+        pr_opened: "Ready for Review"
+        complete: "Done"
+        failed: "Needs Triage"
+```
+
+<Note>
+  State names must match your Linear team's workflow exactly, including capitalization. Run `gpr linear states "Engineering"` to list all available states for a team.
+</Note>
+
+## Cycle and Priority Handling
+
+### Cycle awareness
+
+GPR is cycle-aware by default. When GPR picks up an issue, it checks whether the issue belongs to an active cycle and includes that context in the agent prompt (e.g., "This issue is part of Cycle 14, due in 3 days"). This helps the agent scope its work appropriately.
+
+You can also restrict GPR to only pick up issues inside the current active cycle:
+
+```yaml
+# gpr.config.yaml
+linear:
+  teams:
+    - name: Engineering
+      trigger:
+        type: label
+        value: gpr-ready
+      active_cycle_only: true    # only process issues in the current cycle
+```
+
+### Priority ordering
+
+When multiple issues match the trigger condition simultaneously, GPR processes them in priority order: **Urgent → High → Medium → Low → No priority**. This mirrors Linear's own priority model and ensures the most critical work starts first.
+
+To disable priority ordering and process issues in the order they were triggered, set:
+
+```yaml
+linear:
+  teams:
+    - name: Engineering
+      priority_ordering: false
+```
+
+<Warning>
+  GPR processes one issue per team at a time by default to avoid overwhelming the local coding agent. Increase concurrency only if your machine can reliably support parallel agent runs:
+
+  ```yaml
+  linear:
+    teams:
+      - name: Engineering
+        max_concurrent_issues: 2
+  ```
+</Warning>
+
+## Sub-issue Handling
+
+If a Linear issue has sub-issues, GPR includes their titles and descriptions in the agent prompt as a checklist. The agent is instructed to address each sub-issue as part of the same PR. As sub-issues are resolved, GPR marks them complete in Linear.
+
+To disable sub-issue expansion:
+
+```yaml
+linear:
+  teams:
+    - name: Engineering
+      expand_sub_issues: false
+```
+
+## Disconnect or Rotate the API Key
+
+To rotate the API key, generate a new one in Linear's API settings, update your environment variable, and GPR will use it on the next poll cycle — no restart required.
+
+To disconnect Linear entirely:
+
+```bash
+gpr integration remove linear
+```
+
+This stops all Linear polling and clears the stored key from GPR. Any issues currently being processed will complete, but no new issues will be picked up.

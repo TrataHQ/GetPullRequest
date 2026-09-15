@@ -1,0 +1,165 @@
+---
+title: "Configure OpenAI Codex CLI as Your GPR Coding Agent"
+sidebarTitle: "Codex"
+description: "Install the Codex CLI, register it with GPR using your OpenAI API key, configure model and approval settings, and optimize it for automated pull request workflows."
+---
+
+OpenAI's Codex CLI is a terminal-native coding agent that uses the OpenAI API to read your codebase, reason about changes, and execute them directly in your working directory. Registered as a GPR agent, Codex takes ticket requirements from Jira, Linear, or GitHub Issues and turns them into committed, tested code — ready for GPR to verify and ship as a pull request. This guide covers installation, registration, and the configuration options that matter most in an automated workflow.
+
+## Prerequisites
+
+- Node.js 22 or later (Codex CLI requirement).
+- An [OpenAI API key](https://platform.openai.com/api-keys) with access to the model you plan to use.
+- GPR CLI installed (`npm install -g gpr`) and authenticated (`gpr auth login`).
+
+## Install the Codex CLI
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install -g @openai/codex
+    ```
+  </Tab>
+  <Tab title="Homebrew (macOS)">
+    ```bash
+    brew install openai/tap/codex
+    ```
+  </Tab>
+</Tabs>
+
+Verify the installation:
+
+```bash
+codex --version
+```
+
+<Note>
+  The Codex CLI requires Node.js 22 or later. If you see a version error, run `node --version` and upgrade via `nvm`, `fnm`, or your system package manager.
+</Note>
+
+## Set Your OpenAI API Key
+
+```bash
+export OPENAI_API_KEY="sk-xxxxxxxxxxxx"
+```
+
+Add this to your shell profile (`~/.zshrc`, `~/.bashrc`, or equivalent) to make it persistent. GPR reads the key by variable name and never stores it in config files.
+
+## Register Codex with GPR
+
+<Steps>
+  <Step title="Add Codex as a GPR agent">
+    ```bash
+    gpr agent add codex --api-key-env OPENAI_API_KEY
+    ```
+
+    GPR locates the `codex` binary on your `PATH`, tests authentication against the OpenAI API, and confirms the agent is ready.
+  </Step>
+
+  <Step title="Verify the agent is registered">
+    ```bash
+    gpr agent list
+    ```
+
+    ```
+    NAME    TYPE    STATUS    MODEL
+    codex   codex   ready     codex-1
+    ```
+  </Step>
+
+  <Step title="Assign Codex to a project (optional)">
+    If you have multiple agents registered and want Codex to handle a specific project:
+
+    ```bash
+    gpr project set-agent codex --project my-backend-project
+    ```
+  </Step>
+</Steps>
+
+## Configuration Options
+
+Add a `codex` entry under `agents` in `gpr.config.yaml` to control the model, approval behavior, and execution environment.
+
+```yaml
+# gpr.config.yaml
+agents:
+  - name: codex
+    type: codex
+    api_key_env: OPENAI_API_KEY          # env var holding your OpenAI key
+    model: codex-1                       # model identifier
+    approval_mode: auto-edit             # "suggest" | "auto-edit" | "full-auto"
+    timeout_seconds: 600                 # abort the agent run after this long
+    max_tokens: 8192                     # max tokens per response turn
+    working_directory: "."              # repo root
+    sandbox: true                        # run in a sandboxed process (recommended)
+    env:
+      NODE_ENV: test
+      CI: "true"
+```
+
+### Approval modes
+
+Codex CLI supports three approval modes. GPR requires `auto-edit` or `full-auto` for unattended operation.
+
+| Mode | Description | Use with GPR |
+|---|---|---|
+| `suggest` | Codex proposes changes; a human approves each one. | ❌ Not compatible with automated runs |
+| `auto-edit` | Codex edits files automatically but confirms before running shell commands. | ✅ Recommended |
+| `full-auto` | Codex edits files and runs commands without confirmation. | ✅ Use only in a sandboxed environment |
+
+<Warning>
+  `full-auto` mode allows Codex to run arbitrary shell commands in your working directory. Only use it when `sandbox: true` is set and you trust the task descriptions coming from your ticket tracker. For most teams, `auto-edit` provides a better safety boundary.
+</Warning>
+
+### Model options
+
+| Model | Best for |
+|---|---|
+| `codex-1` | General-purpose agentic coding tasks |
+| `o4-mini` | Lightweight tasks; lower latency and cost |
+| `gpt-4.1` | Complex reasoning-heavy tasks where coding quality is paramount |
+
+<Tip>
+  `codex-1` is optimized specifically for agentic coding with tool use and is the recommended default. Try `o4-mini` for simpler tickets like dependency updates or documentation changes to reduce cost.
+</Tip>
+
+## Tips for Best Results
+
+**Write task-focused ticket descriptions.** Codex performs best when the ticket description reads like a clear engineering task rather than a business requirement. Include file paths, function names, or API endpoints where you know them — Codex will use this information to start in the right place rather than exploring the entire codebase.
+
+**Enable the sandbox option.** Setting `sandbox: true` in your agent config runs Codex in an isolated process with restricted network and filesystem access. This prevents accidental writes outside the repository and makes runs safer in `full-auto` mode.
+
+**Set `CI: "true"` in the agent environment.** Many test runners, linters, and build tools behave differently when `CI` is set — they disable interactive prompts, colorize output consistently, and sometimes run in a stricter mode. This makes verification results more predictable.
+
+**Use `.codex/instructions.md` for project-specific guidance.** Codex reads a project-level instructions file at startup. Use it to communicate repository conventions, testing requirements, and any files that should never be modified.
+
+```markdown
+<!-- .codex/instructions.md -->
+## Project conventions
+- All new modules must have a corresponding `*.test.ts` file
+- Use `pnpm` for package management, not npm or yarn
+- The `dist/` directory is generated; do not edit files inside it
+- Run `pnpm lint` and `pnpm test` to verify your changes
+```
+
+**Tune `timeout_seconds` to your task complexity.** Simple one-file changes complete in under 60 seconds. Multi-file refactors may need 5–10 minutes. Set `timeout_seconds` conservatively high to start — GPR will still report the actual elapsed time in the run log.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="'codex: command not found'">
+    Confirm that npm's global bin directory is in your `PATH`. Run `npm bin -g` to find it and add it to your shell profile. If you installed via Homebrew, run `brew doctor` to check for PATH issues.
+  </Accordion>
+
+  <Accordion title="OpenAI API returns a 401 error">
+    Verify the value of `OPENAI_API_KEY` in your current shell: `echo $OPENAI_API_KEY`. If it is empty, re-export the variable. Also confirm the key is active and has not been rotated in the [OpenAI platform](https://platform.openai.com/api-keys).
+  </Accordion>
+
+  <Accordion title="Codex gets stuck waiting for input in auto-edit mode">
+    A command Codex wants to run is triggering an interactive prompt despite `auto-edit` mode. Add `CI: "true"` to the agent's `env` block in `gpr.config.yaml`, which suppresses most interactive prompts in common tools. If the problem persists, switch to `full-auto` with `sandbox: true`.
+  </Accordion>
+
+  <Accordion title="Run fails with 'context length exceeded'">
+    The task prompt plus the codebase context is exceeding the model's context window. Try reducing `max_tokens` to free space for the model's response, breaking the ticket into smaller sub-tasks, or switching to a model with a larger context window such as `gpt-4.1`.
+  </Accordion>
+</AccordionGroup>

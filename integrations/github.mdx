@@ -1,0 +1,139 @@
+---
+title: "Connect GPR to GitHub: OAuth, PRs, and Status Checks"
+sidebarTitle: "GitHub"
+description: "Authorize GPR to open pull requests, post status checks, and read repositories on your behalf — then manage or revoke access at any time."
+---
+
+GPR integrates with GitHub to close the loop between ticket work and code review: once your coding agent finishes a task, GPR opens a pull request in the right repository, attaches status checks so your team sees verification results, and keeps the Jira or Linear ticket in sync. All of this runs through a standard GitHub OAuth app, so you stay in control of every permission granted.
+
+## Prerequisites
+
+- A GitHub account with write access to at least one repository you want GPR to target.
+- A GPR account (sign up at [app.getpullrequest.com](https://app.getpullrequest.com)).
+- The GPR CLI installed locally (`npm install -g gpr` or see [Install GPR](/get-started/install-gpr)).
+
+## Connect GitHub to GPR
+
+<Steps>
+  <Step title="Open the Integrations page">
+    In the GPR dashboard, navigate to **Settings → Integrations** and click **Connect** next to the GitHub tile.
+  </Step>
+
+  <Step title="Authorize the GPR OAuth app">
+    GitHub will redirect you to an authorization screen. Review the requested permissions (detailed below) and click **Authorize GetPullRequest**.
+  </Step>
+
+  <Step title="Select repository access">
+    Choose whether GPR can access **all repositories** in your account or only **selected repositories**. For most teams, selecting specific repositories is recommended — you can always expand access later.
+  </Step>
+
+  <Step title="Confirm the connection">
+    After authorization, GitHub redirects you back to the GPR dashboard. A green **Connected** badge appears next to the GitHub tile. GPR also confirms the connection in your terminal if you ran the OAuth flow via the CLI:
+
+    ```bash
+    gpr auth status
+    ```
+
+    ```
+    ✔ GitHub   connected  (user: your-handle, repos: 3 selected)
+    ```
+  </Step>
+</Steps>
+
+## Permissions GPR Requests
+
+GPR requests the minimum OAuth scopes needed to do its job. The authorization screen shows all scopes before you approve.
+
+| Scope | Why GPR needs it |
+|---|---|
+| `repo` | Read repository contents, branches, and commit history so the agent can clone and push feature branches. |
+| `pull_request` (write) | Open, update, and close pull requests on your behalf. |
+| `checks` (write) | Post status checks to a PR so reviewers see whether GPR's local verification passed. |
+| `read:user` | Identify your GitHub account to associate PRs with the correct user. |
+
+<Note>
+  GPR never reads or stores your source code on its servers. The `repo` scope is used only to coordinate branch names and metadata; all code operations run in your local environment via the GPR agent runner.
+</Note>
+
+## How GPR Opens Pull Requests
+
+After a coding agent completes work and GPR's local verification suite passes, GPR:
+
+1. **Creates a feature branch** following the pattern `gpr/<ticket-id>-<slug>` (configurable in `gpr.config.yaml`).
+2. **Pushes the branch** to GitHub using the credentials granted via OAuth — no personal access token or SSH key required.
+3. **Opens a pull request** with a generated title and body that includes the originating ticket link, a summary of changes, and a link to the GPR run log.
+4. **Posts a status check** named `gpr/verification` that reflects whether the local test/lint/build steps passed before the PR was opened.
+
+You can customize the PR template in your project config:
+
+```yaml
+# gpr.config.yaml
+github:
+  pr_template: .github/pull_request_template.md   # use your existing template
+  base_branch: main                                # default target branch
+  draft: false                                     # open as draft PR instead
+  labels:
+    - gpr-automated
+```
+
+<Tip>
+  Set `draft: true` if you want every GPR-opened PR to start as a draft, giving you a chance to review before requesting reviewers.
+</Tip>
+
+## Status Checks
+
+GPR posts a single composite check (`gpr/verification`) whose status reflects the outcome of all local verification steps (tests, linting, type checking, build). The check links back to the full run log in the GPR dashboard.
+
+| Check status | Meaning |
+|---|---|
+| `pending` | GPR is still running local verification. |
+| `success` | All verification steps passed; the PR is ready for review. |
+| `failure` | One or more steps failed. See the run log for details. |
+| `action_required` | GPR needs your input (e.g., secrets missing, ambiguous config). |
+
+You can add additional required status checks in your GitHub branch protection rules — GPR's check integrates with the same system.
+
+## Reconnect or Revoke Access
+
+### Reconnect after a token expiry
+
+If GPR loses access to GitHub (for example, after you rotate credentials or revoke the app), the dashboard displays a **Reconnect** banner. Click it to restart the OAuth flow — GPR will reuse your existing repository selection.
+
+From the CLI:
+
+```bash
+gpr auth connect github
+```
+
+### Revoke GPR's access
+
+To remove GPR's access entirely:
+
+<Steps>
+  <Step title="Revoke in GitHub">
+    Go to **GitHub → Settings → Applications → Authorized OAuth Apps**, find **GetPullRequest**, and click **Revoke**.
+  </Step>
+  <Step title="Remove from GPR dashboard">
+    In GPR **Settings → Integrations**, click **Disconnect** next to GitHub. This removes the stored token from GPR's side and pauses any workflows that depend on GitHub.
+  </Step>
+</Steps>
+
+<Warning>
+  Revoking access while a GPR workflow is in progress will cause that run to fail at the PR-opening step. Complete or cancel any active runs before revoking.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="GPR says 'insufficient permissions' when opening a PR">
+    This usually means the repository was added to your GitHub account after GPR was authorized. Go to **Settings → Integrations → GitHub → Manage access** in the GPR dashboard and add the missing repository, or re-run the OAuth flow and expand repository access in GitHub.
+  </Accordion>
+
+  <Accordion title="Status check does not appear on the pull request">
+    Confirm that the `checks: write` scope was granted during authorization. You can inspect granted scopes under **GitHub → Settings → Applications → Authorized OAuth Apps → GetPullRequest → Permissions**. If the scope is missing, reconnect via `gpr auth connect github`.
+  </Accordion>
+
+  <Accordion title="PR is opened against the wrong base branch">
+    Set `github.base_branch` in your `gpr.config.yaml`. If your repository uses a non-standard default branch name, GPR falls back to the repository's configured default — verify it matches your intent.
+  </Accordion>
+</AccordionGroup>

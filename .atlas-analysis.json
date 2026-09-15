@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
+  "projectType": "saas",
+  "projectName": "GetPullRequest (GPR)",
+  "projectDescription": "GPR connects Jira, GitHub, GitLab, and Slack with AI coding agents—running on your local machine—into a single orchestrated workflow that verifies changes before opening a pull request, and keeps the entire process accessible from your phone.",
   "theme": "luma",
-  "name": "GPR",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -85,14 +83,29 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Get Started",
-      "href": "/get-started/introduction"
-    }
-  },
-  "footer": {
-    "socials": {}
-  }
+  "keyFeatures": [
+    "Orchestrates AI coding agents (Claude Code, Codex, Cursor, ACP-compatible) from a single interface",
+    "Connects Jira, GitHub, GitLab, and Slack into a unified task workflow",
+    "Runs coding agents on your local machine for full environment fidelity",
+    "Verifies changes in your real development environment before opening a pull request",
+    "Mobile-first access: assign tasks, monitor progress, and merge PRs from your phone",
+    "Supports multiple machines and workspaces",
+    "Task state tracking from assignment through merge",
+    "Slack notifications for agent progress and task status"
+  ],
+  "publicApiSurface": [
+    "gpr install (CLI install command)",
+    "gpr connect machine (register local machine)",
+    "gpr connect github (OAuth GitHub integration)",
+    "gpr connect agent <agent-name> (configure coding agent)",
+    "gpr task create (create a new task)",
+    "gpr task list (list tasks and their states)",
+    "gpr task assign (assign task to agent on machine)",
+    "gpr workspace init (initialize a workspace)",
+    "gpr machine list (list connected machines)",
+    "gpr agent list (list configured agents)",
+    "gpr pr review (open PR review flow)",
+    "gpr config (view/edit configuration)",
+    "Task states: pending, assigned, running, verifying, pr_open, merged, failed"
+  ]
 }
