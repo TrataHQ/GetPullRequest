@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "luma",
-  "name": "GPR",
+  "name": "GetPullRequest (GPR)",
   "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
+    "primary": "#1565C0",
+    "light": "#90CAF9",
+    "dark": "#1565C0"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -100,5 +100,18 @@
     "socials": {
       "x": "https://x.com/getpullrequest"
     }
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "background": {
+    "decoration": "gradient",
+    "color": {
+      "light": "#FCFCFC",
+      "dark": "#080808"
+    }
+  },
+  "icons": {
+    "library": "lucide"
   }
 }
