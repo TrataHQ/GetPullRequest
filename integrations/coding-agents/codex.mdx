@@ -33,5 +33,5 @@ The daemon runs `codex-acp`, which bridges ACP to the Codex CLI.
 |---|---|
 | `not installed` | `which codex` |
 | `needs adapter` | `ls "$(dirname "$(which gpr)")/codex-acp"` |
-| Auth errors | `codex login` or `OPENAI_API_KEY` in the daemon environment |
+| Auth errors | `codex login`, or `OPENAI_API_KEY` on the Codex process via [agents.json](/reference/agents-json) (not only your shell) |
 | Stale PATH | `gpr restart` after installing tools |

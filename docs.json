@@ -75,6 +75,7 @@
             "pages": [
               "reference/cli",
               "reference/configuration",
+              "reference/agents-json",
               "reference/task-states",
               "reference/troubleshooting"
             ]

@@ -34,7 +34,7 @@ The daemon runs the adapter (`claude-code-acp`), which speaks ACP on stdio and d
 | `not installed` | `which claude` |
 | `needs adapter` | `ls "$(dirname "$(which gpr)")/claude-code-acp"` |
 | Auth errors in session | API key / Claude login on that machine |
-| Works in terminal, not in GPR | Daemon PATH; restart daemon after installing CLIs |
+| Works in terminal, not in GPR | Daemon PATH and env. The service does not load `.zshrc`. Use [agents.json](/reference/agents-json) for API keys or custom base URLs, then `gpr restart` |
 
 ```bash
 gpr restart

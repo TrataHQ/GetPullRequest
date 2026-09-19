@@ -43,4 +43,6 @@ The backend does not embed the agent. It relays frames and stores task/session m
 
 ## Adding new agents later
 
-New catalog entries ship with daemon releases. Prefer agents that already appear in `gpr discover` over hand-rolled launch configs unless you know you need a custom agent spec.
+New catalog entries ship with daemon releases. Prefer agents that already appear in `gpr discover`.
+
+When you need a custom ACP binary, extra env (API keys, proxy URLs), or an agent id that is not in the catalog, write [agents.json](/reference/agents-json). Names in that file are advertised to the app on connect. A catalog id you redefine fully replaces the built-in launch spec.

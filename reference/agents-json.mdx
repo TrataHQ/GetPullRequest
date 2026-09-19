@@ -1,0 +1,94 @@
+---
+title: "agents.json"
+description: "Optional local file that controls how the gpr daemon launches coding agents."
+keywords: ["agents.json", "daemon", "ACP", "environment variables", "catalog"]
+---
+
+`~/.gpr/agents.json` is an **optional** launch config for the daemon. It is not created by install or `gpr setup`. If the file is missing, the built-in catalog is used.
+
+Override the location with `GPR_HOME`. The file is then `$GPR_HOME/agents.json`.
+
+## What it provides
+
+The catalog already knows how to spawn Cursor, Claude Agent, Codex, and other ACP agents. `agents.json` is the local override when that default is not enough.
+
+Use it to:
+
+- **Inject environment into the agent process.** The daemon runs as a background service (LaunchAgent on macOS, equivalent startup service on Linux and Windows). It does **not** load `.zshrc`, `.bashrc`, or PowerShell profiles. Keys you export in a terminal never reach Claude or Codex unless you put them here or in the service environment.
+- **Pin the command and args.** Point at a custom ACP binary, a non-PATH location, or extra flags.
+- **Register agents that are not in the catalog.** Names you add are advertised to the app on connect, so you can select them on a workspace.
+- **Override a catalog agent.** A key such as `claude` or `cursor` fully replaces that catalog launch spec.
+- **Set `workspaceRoot`.** Fallback session sandboxes when the relay does not supply a cwd (default `~/.gpr/sessions`).
+
+Most setups never need this file.
+
+## When to use it
+
+| Situation | Use `agents.json`? |
+|---|---|
+| `gpr discover` shows the agent `ready` and sessions work | No |
+| Agent works in your shell, but GPR reports missing auth, expired OAuth, or a missing API key | Yes: put the env on that agent |
+| Custom Anthropic-compatible endpoint or proxy (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`) | Yes |
+| ACP binary not in the catalog, or not on `PATH` | Yes |
+| You only want to change the `default` agent quickly | `GPR_AGENT_CMD` is enough |
+
+## Schema
+
+```json
+{
+  "workspaceRoot": "/optional/fallback/sandboxes",
+  "agents": {
+    "claude": {
+      "command": "claude-agent-acp",
+      "args": [],
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+        "ANTHROPIC_AUTH_TOKEN": "sk-or-your-key"
+      }
+    }
+  }
+}
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `agents` | Yes, if you define agents | Map of agent id → launch spec |
+| `agents.<id>.command` | Yes | Executable the daemon spawns (ACP over stdio) |
+| `agents.<id>.args` | No | Extra argv |
+| `agents.<id>.env` | No | Extra environment for **that** process. Merged on top of the daemon process env |
+| `workspaceRoot` | No | Parent dir for per-session fallback sandboxes |
+
+On Windows the same file is `%USERPROFILE%\.gpr\agents.json`.
+
+## Replace, do not merge
+
+If you define a catalog id (`claude`, `codex`, `cursor`, …), that spec **replaces** the catalog entry. The daemon does not fill in catalog defaults.
+
+That means:
+
+- You must set `command`. An env-only `claude` block fails with `agent "claude" has no command`.
+- Catalog-only env such as `CLAUDE_CODE_EXECUTABLE` and `CODEX_PATH` is **not** copied in. Set those yourself if the adapter needs them.
+
+Ids that are **not** in the catalog are added. Catalog agents you omit keep their built-in spec.
+
+## Apply changes
+
+The daemon reads the file at startup.
+
+```bash
+gpr restart
+```
+
+A parse error prevents the daemon from starting. Check `gpr logs` if restart fails.
+
+## Related: `GPR_AGENT_CMD`
+
+```bash
+export GPR_AGENT_CMD="cursor-agent acp"
+```
+
+This sets or replaces only the agent named `default`. It does not change `claude` or `codex`. Prefer `agents.json` when you need per-agent env, extra agents, or a durable config that survives a new shell.
+
+## Secrets
+
+Keep API keys in this local file, not in the repo you are working in. `gpr uninstall --purge` deletes `~/.gpr`, including `agents.json`.

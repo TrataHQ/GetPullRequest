@@ -45,7 +45,13 @@ gpr restart
 gpr discover
 ```
 
-Service-managed daemons may not inherit your interactive shell `PATH`. Install tools in standard locations or configure the service environment.
+Service-managed daemons may not inherit your interactive shell `PATH` or exported API keys. Install tools in standard locations, then `gpr restart`. To pass env into the agent process (keys, base URLs, proxies), use [agents.json](/reference/agents-json).
+
+## Agent works in a terminal, not in GPR
+
+The daemon does not source `.zshrc`, `.bashrc`, or PowerShell profiles. Auth that works after `source ~/.zshrc` is invisible to LaunchAgent / service-managed `gpr`.
+
+Put the same variables on the agent in `~/.gpr/agents.json`, then `gpr restart`. If you override a catalog id such as `claude`, include `command` as well. Env-only blocks fail.
 
 ## Task stuck in waiting for machine
 

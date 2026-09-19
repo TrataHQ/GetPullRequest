@@ -13,6 +13,7 @@ description: "Environment variables and on-disk paths for the gpr daemon."
 | `~/.gpr/daemon.log` | Rotated log |
 | `~/.gpr/events.jsonl` | Local event trail |
 | `~/.gpr/workspaces/<id>/` | Per-workspace state |
+| `~/.gpr/agents.json` | Optional agent launch overrides (command, args, env). See [agents.json](/reference/agents-json) |
 
 Override home with `GPR_HOME`.
 
@@ -23,6 +24,7 @@ Override home with `GPR_HOME`.
 | `GPR_SERVER_URL` | prod/dev WS URL | Backend websocket endpoint |
 | `GPR_ENV` | unset | `dev` / `development` / `local` → `ws://localhost:8000/gpr/ws/daemon` |
 | `GPR_HOME` | `~/.gpr` | Data directory |
+| `GPR_AGENT_CMD` | unset | Executable + args for the `default` agent. Overrides `default` in `agents.json` |
 | `GPR_RECONNECT_MAX_ATTEMPTS` | `0` (forever) | Cap automatic reconnects |
 | `GPR_CONNECTION_MAX_LIFETIME_MINUTES` | `50` | Proactive WS rotation; `0` disables |
 | `GPR_SESSION_RECONNECT_GRACE_SECONDS` | `120` | Keep agent alive across brief disconnects |
@@ -55,3 +57,9 @@ Configured in the mobile app per workspace:
 - Default model (`auto` by default)
 - Max concurrent tasks (`1` by default)
 - Provider (`byoa` by default)
+
+## Agent launch config
+
+The built-in catalog is enough for a normal install. Use [agents.json](/reference/agents-json) when you need per-agent environment variables, a custom ACP command, or an agent that is not in the catalog.
+
+The daemon service does not load your shell profile. Env vars in `.zshrc` do not reach agent processes unless you put them in `agents.json` or the service environment.

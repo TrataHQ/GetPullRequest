@@ -55,6 +55,12 @@ Details: [Codex](/integrations/coding-agents/codex).
 
 Open the workspace settings in the mobile app and choose the agent (and model if offered). The workspace stores the selected agent id and default model (default `auto`).
 
+## Custom launch config
+
+You do not need `~/.gpr/agents.json` for catalog agents that `gpr discover` marks `ready`.
+
+Write that file when the agent must see env the background daemon does not inherit from your shell, or when you want a non-catalog ACP command. Details: [agents.json](/reference/agents-json).
+
 ## Next
 
 [Run your first task](/get-started/run-your-first-task).
