@@ -34,6 +34,12 @@ Each task pins to one workspace / daemon. Keep that host online for the life of 
 
 One machine can host several workspaces (different directories). Use separate workspaces when repos or agent defaults differ. See [Manage multiple machines](/guides/manage-multiple-machines).
 
+## Code host connection is optional
+
+A connected code host (GitHub, etc.) is an enrichment, not a requirement. Tasks run on your machine with local git and worktrees whether or not a host is connected. Only PR / MR delivery and host issue sync require one.
+
+The base-branch pill on the task card is always actionable. When no host is connected, the branch picker falls back to your local git branches so you can still pick or change the base for a task.
+
 ## Local state
 
 Per-workspace daemon data lives under `~/.gpr/workspaces/<workspace_id>/`.
