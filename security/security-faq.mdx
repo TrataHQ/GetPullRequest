@@ -5,11 +5,11 @@ description: "Short answers to common security questions about GPR."
 
 ## Does my code upload to GPR by default?
 
-Agent execution and worktrees stay on your machine. The relay carries the ACP session needed to control and observe the agent from your phone. Hosted PR/issue sync talks to GitHub/Jira/Slack when you connect those providers.
+Agent execution and worktrees stay on your machine. The relay carries the ACP session needed to control and observe the agent from your phone. Hosted PR/issue sync talks to GitHub/GitLab/Jira/Slack when you connect those providers.
 
-## Can GPR run without GitHub?
+## Can GPR run without a code host?
 
-Yes. Local sessions, the board, and daemon git features work without a code host. You lose host PR open/merge APIs and GitHub issue sync.
+Yes. Local sessions, the board, and daemon git features work without a code host. You lose host PR/MR open/merge APIs and issue sync from GitHub or GitLab.
 
 ## Who can approve tool calls?
 
@@ -23,7 +23,7 @@ OAuth tokens for connected providers are stored by the GPR backend (encrypted at
 
 1. Remove the connection / workspace from the app.
 2. On the machine if you still can: `gpr uninstall --purge`
-3. Rotate GitHub/Jira/Slack OAuth by disconnecting and reconnecting.
+3. Rotate GitHub/GitLab/Jira/Slack OAuth by disconnecting and reconnecting.
 4. Rotate agent credentials on that host.
 
 ## Is the daemon sandboxed in a container?

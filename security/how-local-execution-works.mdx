@@ -17,7 +17,7 @@ GPR’s default model is **bring your own agent (BYOA)**.
 - User auth (Firebase)
 - Task board, queue, and state machine
 - Websocket hub / ACP frame relay
-- Optional OAuth tokens for GitHub, Jira, Slack
+- Optional OAuth tokens for GitHub, GitLab, Jira, Slack
 - Push notifications and other app APIs
 
 ## What that means
@@ -28,6 +28,6 @@ GPR’s default model is **bring your own agent (BYOA)**.
 | Test commands | Your machine |
 | Model calls for the coding agent | Whatever that agent is configured to use |
 | Board / orchestration | GPR backend |
-| Opening a GitHub PR | Backend → GitHub API (with your OAuth) |
+| Opening a GitHub PR or GitLab MR | Backend → GitHub or GitLab API (with your OAuth) |
 
 The relay sees ACP traffic needed to drive the session from your phone. It is not a substitute for the agent runtime.

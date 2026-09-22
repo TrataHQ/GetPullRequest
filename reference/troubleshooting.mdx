@@ -65,9 +65,9 @@ Open task activity for the failing command output. Fix tests locally if needed, 
 
 For unattended tasks, more tool kinds are auto-approved (including `execute`). Mutating `edit` / `delete` / `move` should still reach you unless you widened auto-approve via env vars. See [Permissions](/security/permissions).
 
-## GitHub PR not opening
+## GitHub PR or GitLab MR not opening
 
-Confirm GitHub is connected under **Settings → Connections** and the workspace repo is bound. Local commits can still exist on the machine without a host PR.
+Confirm the matching host (GitHub or GitLab) is connected under **Settings → Connections** and the workspace repo is bound. Local commits can still exist on the machine without a host PR or MR.
 
 ## Update the daemon
 

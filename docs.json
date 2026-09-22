@@ -57,6 +57,7 @@
             "group": "Integrations",
             "pages": [
               "integrations/github",
+              "integrations/gitlab",
               "integrations/jira",
               "integrations/slack",
               {

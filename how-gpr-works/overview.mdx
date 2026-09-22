@@ -11,7 +11,7 @@ GPR is a control plane for coding agents that run on machines you own.
 Flutter app  --HTTPS-->  FastAPI (REST)
 Flutter app  --WSS---->  hub / relay  <--WSS--  gpr daemon
                               │
-                         optional HTTPS to GitHub / Jira / Slack
+                         optional HTTPS to GitHub / GitLab / Jira / Slack
                               │
 gpr daemon  --ACP stdio-->  Cursor / Claude / Codex / …
 gpr daemon  --git-------->  local worktrees
@@ -32,7 +32,7 @@ gpr daemon  --git-------->  local worktrees
 | [Workspace](/how-gpr-works/workspaces) | Directory bound to a machine; where tasks run |
 | [Task](/how-gpr-works/tasks) | Board item with status, phase, and checkpoint |
 | [Agent session](/how-gpr-works/agent-sessions) | Live ACP session tied to a task or chat |
-| [Pull request](/how-gpr-works/pull-requests) | Review artifact; GitHub is source of truth when connected |
+| [Pull request](/how-gpr-works/pull-requests) | Review artifact; GitHub or GitLab is source of truth when connected |
 
 A task pins to one workspace. Do not let a second host take over the same task.
 
@@ -44,4 +44,4 @@ Workspaces default to bring-your-own-agent (`provider: byoa`). Agents and creden
 
 Core features work without OAuth: board, sessions, local git, merge-check from the daemon.
 
-[GitHub](/integrations/github), [Jira](/integrations/jira), and [Slack](/integrations/slack) are optional enrichments. They sync issues, open host PRs, and add metadata. They never replace local git results.
+[GitHub](/integrations/github), [GitLab](/integrations/gitlab), [Jira](/integrations/jira), and [Slack](/integrations/slack) are optional enrichments. They sync issues, open host PRs / MRs, and add metadata. They never replace local git results.
