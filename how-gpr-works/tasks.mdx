@@ -52,6 +52,20 @@ When claimed:
 
 The mobile board folds several statuses into fewer columns. Expect Backlog to include parked states such as `awaiting_user`, `waiting_for_agent`, and `interrupted`, plus In Progress, In Review, Done, and Failed.
 
+## Workspace config requirements
+
+A task checks its workspace before it runs. Missing pieces are graded by severity: **errors** block the run, **warnings** are enrichments the task runs without.
+
+| Requirement | Severity | If missing |
+|---|---|---|
+| Workspace assigned | Error | Task cannot start |
+| Agent selected | Error | Task cannot start |
+| Model configured | Error | Task cannot start |
+| Base branch resolvable | Error | Task cannot start |
+| Code host connected | Warning | Task still runs on your machine; PR / MR delivery and host issue sync are unavailable |
+
+Only errors disable **Run task**. When just warnings remain, the config banner styles as a warning and the task stays runnable.
+
 ## Task vs session
 
 The **task** owns board state and checkpoints. The **session** owns the live agent process and stream. Chat UI follows the session; the board follows the task.
