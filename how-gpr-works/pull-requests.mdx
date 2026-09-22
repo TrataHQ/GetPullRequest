@@ -1,6 +1,6 @@
 ---
 title: "Pull requests"
-description: "How GPR opens PRs and what is authoritative when GitHub is connected."
+description: "How GPR opens PRs and MRs and what is authoritative when a code host is connected."
 ---
 
 After implement and verify, GPR opens or updates a pull request and parks the task in **In review**.
@@ -10,14 +10,16 @@ After implement and verify, GPR opens or updates a pull request and parks the ta
 | Concern | Source |
 |---|---|
 | Branch contents / conflicts from git | Local daemon git / worktree |
-| PR number, state, merged flag on GitHub | GitHub API (when connected) |
+| PR / MR number, state, merged flag | GitHub or GitLab API (when connected) |
 
-Merge-check always runs against **session git** on the machine. GitHub metadata is an enrichment layer, not a replacement.
+Merge-check always runs against **session git** on the machine. Host metadata is an enrichment layer, not a replacement.
 
-## With GitHub connected
+## With a code host connected
+
+Works the same whether the workspace is bound to a GitHub or GitLab repo.
 
 1. Pipeline reaches `summary_complete`.
-2. GPR opens or updates the PR.
+2. GPR opens or updates the PR (GitHub) or MR (GitLab).
 3. Task status → `in_review`, checkpoint → `pr_complete`.
 4. On merge → `completed` (`PR_MERGED`).
 
@@ -29,6 +31,6 @@ If there is no host to open a PR on, the run can finish via `NOTIFIED` and mark 
 
 ## Reviews
 
-Review comments (GitHub or in-app) can feed back into the task. A rerun or continuation addresses them before opening an updated PR.
+Review comments (GitHub, GitLab, or in-app) can feed back into the task. A rerun or continuation addresses them before opening an updated PR or MR.
 
 See [Review and merge a pull request](/guides/review-and-merge).

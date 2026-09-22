@@ -1,6 +1,6 @@
 ---
 title: "Review and merge a pull request"
-description: "Review agent diffs from the phone and merge when GitHub is connected."
+description: "Review agent diffs from the phone and merge when GitHub or GitLab is connected."
 ---
 
 When the pipeline opens a PR, the task moves to **In review**.
@@ -9,22 +9,22 @@ When the pipeline opens a PR, the task moves to **In review**.
 
 1. Open the task.
 2. Open the diff / file changes view.
-3. Check merge status. Conflict and file lists come from **local git** on the daemon. GitHub may add mergeability hints when connected.
+3. Check merge status. Conflict and file lists come from **local git** on the daemon. GitHub or GitLab may add mergeability hints when connected.
 
 ## Leave feedback
 
-Add review comments in the app or on GitHub. Trigger a **rerun** or continuation so the agent addresses them on the same durable session / branch.
+Add review comments in the app or on the host (GitHub or GitLab). Trigger a **rerun** or continuation so the agent addresses them on the same durable session / branch.
 
 ## Merge
 
-With GitHub connected:
+With GitHub or GitLab connected:
 
-1. Confirm the PR looks right.
-2. Merge from the app or on GitHub.
+1. Confirm the PR (GitHub) or MR (GitLab) looks right.
+2. Merge from the app or on the host.
 3. On merge, the task becomes **Done** (`completed`).
 
-Without GitHub, you still have the local branch and worktree on the machine. Push/open the PR yourself with your normal git remote workflow.
+Without a code host, you still have the local branch and worktree on the machine. Push/open the PR or MR yourself with your normal git remote workflow.
 
 ## Merge-check without guessing
 
-Core merge-check runs on the daemon. It does not require OAuth. Treat GitHub’s `mergeable` fields as hints layered on top of git results.
+Core merge-check runs on the daemon. It does not require OAuth. Treat the host's `mergeable` fields as hints layered on top of git results.

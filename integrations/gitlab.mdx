@@ -1,0 +1,50 @@
+---
+title: "GitLab"
+description: "Connect GitLab for issues, merge requests, and merge enrichments."
+---
+
+GitLab is a peer to [GitHub](/integrations/github). Connect it when you want GPR to open merge requests, sync issues, and enrich merge checks against a GitLab-hosted repo.
+
+Core features (board, local sessions, daemon git, merge-check) work without GitLab. OAuth unlocks the host-backed pieces.
+
+## Connect
+
+1. Open **Settings → Connections** in the app.
+2. Connect **GitLab** and complete OAuth.
+3. Bind a GitLab repository to your workspace.
+
+Callback deep link: `com.pullrequest://gitlab-callback`.
+
+You can connect GitHub and GitLab at the same time. Each workspace is bound to a single repo on one host.
+
+## Repo pickup
+
+During onboarding or workspace setup, the connect-repo screen lists projects you have access to on GitLab. Pick the repo to bind it to the workspace. Branch selection uses the project's default branch.
+
+## What GitLab unlocks
+
+| Capability | Needs GitLab OAuth |
+|---|---|
+| Local agent work in a worktree | No |
+| Open / update a GitLab merge request | Yes |
+| Sync GitLab issues onto the board | Yes |
+| Live MR mergeability hints | Yes |
+| Merge from the app via GitLab | Yes |
+
+## Issue → task
+
+1. Label the GitLab issue `gpr:agent`.
+2. Assign it to yourself.
+3. GPR syncs it to the board for your workspace.
+
+## Merge requests
+
+With OAuth connected, the task pipeline can open and update GitLab MRs, then complete the task when the MR merges. Review, comment, and merge from the mobile app.
+
+## What stays local
+
+Diff contents, worktrees, and git merge-check file lists come from the daemon. GitLab fields such as mergeability are optional enrichments on top.
+
+## Permissions mindset
+
+Grant the OAuth app access only to the projects you intend GPR to touch. Agent execution still happens on your machine under your local git credentials for fetch/push as configured on that host.

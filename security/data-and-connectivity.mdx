@@ -9,7 +9,7 @@ description: "What connects where, and what data moves between phone, cloud, and
 Phone  --HTTPS REST-->  api.getpullrequest.com
 Phone  --WSS--------->  hub / relay
 Daemon --WSS--------->  hub / relay
-Backend --HTTPS------>  GitHub / Jira / Slack (when connected)
+Backend --HTTPS------>  GitHub / GitLab / Jira / Slack (when connected)
 Daemon --local------->  agent process, git, filesystem
 ```
 
@@ -20,7 +20,7 @@ Daemon --local------->  agent process, git, filesystem
 | Account identity | Firebase → GPR backend |
 | Task / board metadata | Phone ↔ backend |
 | ACP session frames | Phone ↔ relay ↔ daemon ↔ agent |
-| OAuth tokens (GitHub/Jira/Slack) | Stored server-side when you connect |
+| OAuth tokens (GitHub/GitLab/Jira/Slack) | Stored server-side when you connect |
 | Repo contents | Local disk / worktrees; pushed only via git / PR flows you trigger |
 | Daemon logs | Local `~/.gpr/daemon.log` |
 
