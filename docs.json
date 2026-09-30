@@ -8,8 +8,8 @@
     "dark": "#1565C0"
   },
   "favicon": {
-    "light": "/images/output.webp",
-    "dark": "/images/output.webp"
+    "light": "/images/gpr_new_logo.png",
+    "dark": "/images/dark_gpr_icon.png"
   },
   "navigation": {
     "tabs": [
@@ -120,8 +120,13 @@
   },
   "description": "GetPullRequest (GPR) is a developer workflow platform that connects issue trackers, Git hosting platforms, communication tools, and coding agents running on your local machine. GPR works with Jira, GitHub, GitLab, Slack, Claude Code, Codex, Cursor, and other ACP-compatible coding agents to orchestrate software development tasks from assignment through pull request. It runs coding work in your own development environment, verifies changes before creating a pull request, and lets you monitor agent progress, review changes, and merge from your phone.",
   "logo": {
-    "light": "/images/output.webp",
-    "dark": "/images/output.webp",
+    "light": "/images/ic_launcher-web.png",
+    "dark": "/images/dark_gpr_icon.png",
     "href": "https://getpullrequest.com"
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-TXPXE3DT0S"
+    }
   }
 }
