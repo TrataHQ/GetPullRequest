@@ -98,7 +98,13 @@
       "type": "button",
       "label": "Get started",
       "href": "/get-started/install-gpr"
-    }
+    },
+    "links": [
+      {
+        "href": "https://getpullrequest.com",
+        "label": "Download"
+      }
+    ]
   },
   "footer": {
     "socials": {
@@ -128,5 +134,8 @@
     "ga4": {
       "measurementId": "G-TXPXE3DT0S"
     }
+  },
+  "fonts": {
+    "family": "Open Sans"
   }
 }
